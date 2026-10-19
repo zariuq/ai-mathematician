@@ -1,0 +1,16 @@
+; A data-only worker invoked under flock. It never receives API credentials.
+!(import! &self "library.metta")
+!(import! &self (library list))
+!(import! &self json)
+!(import! &self system)
+!(import! &self "itp.metta")
+!(import! &self "llm_ledger.metta")
+
+(= (ai-ledger-main:text $arg)
+   (if (== (get-metatype $arg) Symbol) (str:symbol->string $arg) $arg))
+!(if (== (system:argc) 1)
+   (let* (($path (ai-ledger-main:text (system:arg 0)))
+          ($request (json-parse (fs:read-text "/dev/stdin")))
+          ($result (ai-math:llm-ledger-reply (ai-math:llm-ledger-request $path $request))))
+     (system:write stdout (str:concat (json-stringify $result) "\n")))
+   (system:write stdout "{\"kind\":\"ledger-fault\"}\n"))

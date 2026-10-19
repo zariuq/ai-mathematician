@@ -1,0 +1,17 @@
+; Coordinator executable; the public entry acquires the run-directory lock.
+!(import! &self proc)
+!(import! &self "library.metta")
+!(import! &self (library list))
+!(import! &self json)
+!(import! &self system)
+!(import! &self "itp.metta")
+!(import! &self "prover.metta")
+!(import! &self "experiment.metta")
+!(import! &self "experiment_workers.metta")
+
+!(if (== (system:argc) 1)
+   (let* (($arg (system:arg 0)) ($path (if (== (get-metatype $arg) Symbol) (str:symbol->string $arg) $arg))
+          ($root (fs:canonical-path (str:concat (system:entry-directory) "/..")))
+          ($result (ai-math:workers-run (ai-math:workers-config $path $root))))
+     (let $printed (println! $result) (system:exit (ai-math:workers-exit-code $result))))
+   (system:exit 2))

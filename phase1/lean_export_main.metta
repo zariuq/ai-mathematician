@@ -1,0 +1,30 @@
+; cetta --no-results --lang petta@1.0.6 lean_export_main.metta corpus.sexpr All.lean
+!(import! &self "library.metta")
+!(import! &self (library list))
+!(import! &self system)
+!(import! &self re)
+!(import! &self "lean_export.metta")
+!(import! &self "lean_views.metta")
+
+(= (ai-lean-main:text $arg)
+   (if (== (get-metatype $arg) Symbol) (str:symbol->string $arg) $arg))
+!(if (== (system:argc) 2)
+   (let $rendered (ai-math:lean-render (ai-math:lean-export (ai-lean-main:text (system:arg 0))))
+     (if (== (get-type $rendered) String)
+       (let $written (fs:write (ai-lean-main:text (system:arg 1)) $rendered)
+         (let $printed (println! $written) (system:exit (if (== $written ()) 0 2))))
+       (let $printed (println! $rendered) (system:exit 2))))
+   (if (and (== (system:argc) 3) (== (ai-lean-main:text (system:arg 2)) "--views"))
+     (let* (($entries (ai-math:lean-export (ai-lean-main:text (system:arg 0))))
+            ($views (ai-math:lean-views $entries)))
+       (case $views
+         (((AiLean:Views $rows)
+           (let $written (map-atom (cons-atom (AiLean:View "All" $entries) $rows) $row
+                  (let (AiLean:View $name $body) $row
+                    (fs:write (str:join "" ((ai-lean-main:text (system:arg 1)) "/" $name ".lean"))
+                      (ai-math:lean-render $body))))
+             (let $printed (println! $written)
+               (system:exit (if (foldl-atom $written true $ok $item (and $ok (== $item ()))) 0 2)))))
+          ($other (let $printed (println! $other) (system:exit 2))))))
+     (let $printed (println! "usage: lean_export_main.metta corpus.sexpr All.lean | corpus.sexpr existing-directory --views")
+       (system:exit 2))))

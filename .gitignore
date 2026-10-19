@@ -18,4 +18,12 @@ __pycache__/
 # never commit credentials
 .env
 *_api_key*
-tools/duper-env/
+tools/duper-env/*
+!tools/duper-env/lakefile.toml
+!tools/duper-env/lean-toolchain
+!tools/duper-env/lake-manifest.json
+
+# generated CeTTa comparison inputs and run observations
+.cetta/
+cetta-run.json
+results/cetta-*/

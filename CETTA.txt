@@ -1,0 +1,578 @@
+CeTTa / PeTTa 1.0.6 application port
+==================================
+
+The loader, premise selector, Vampire bridge, induction/controller, resumable
+experiments, optional LLM orchestration and Lean source generation run
+directly in MeTTa:
+
+Quick start: copy cetta-run.example.json to cetta-run.json, set its corpus
+and output paths, then:
+
+  make prepare-cetta-itp-native prepare-cetta-duper
+  make run-cetta CETTA=cetta VAMPIRE=vampire RUN_CONFIG=cetta-run.json
+
+Set mode to Resume in the same configuration to continue. For a different
+corpus, first regenerate its Lean library as described under "Corpus
+preparation without Python". The JSON configuration is trusted setup; it
+must select the export corresponding to the prepared library.
+The example starts with four goals; remove limit or set it to 0 to select
+the full corpus. The resolved proof-strategy list is part of resume identity,
+so installing Duper cannot silently reuse earlier core-only search results.
+
+Individual components are also available directly:
+
+  cetta --lang petta@1.0.6 phase1/library_main.metta data/corpus.sexpr
+  cetta --lang petta@1.0.6 phase1/search_main.metta data/corpus.sexpr
+  cetta --lang petta@1.0.6 phase1/atp_main.metta data/corpus.sexpr andI tools/vampire
+
+Build the checked Lean library and the fixed proof runner once:
+
+  make prepare-cetta-itp
+  cetta --no-results --lang petta@1.0.6 phase1/itp_main.metta data/corpus.sexpr orIL proof.tactic
+  cetta --no-results --lang petta@1.0.6 phase1/prover_main.metta data/corpus.sexpr orIL tools/vampire
+
+proof.tactic contains tactics only, for example:
+
+  intro P Q hp r f g
+  exact f hp
+
+The repository pins Lean 4.34.0, as used by the original application.
+LEAN and LEAN_BIN permit explicit compiler/executable overrides; build and
+execution must use the same Lean toolchain. --no-results suppresses the
+interpreter's answer display, not the driver's structured printed result.
+The ITP driver exits 0 for acceptance, 1 for rejection, 3 for unfinished
+work and 2 for a fault or incorrect invocation.
+
+The corpus is Megalodon's typed -sexprinfo export, with or without its
+optional trailing source-line annotations. Generate it as described
+in the existing project setup. The executable and corpus need not live in
+this repository: pass their paths, or set VAMPIRE_BIN for the ATP driver.
+Input paths are relative to the caller's working directory. The entry file
+may also be invoked by its full path from another working directory.
+
+Dependencies
+------------
+
+Use a CeTTa build containing the fs, str, proc, system, json, list and lib_tptp
+libraries, the pinned official TPTP reader snapshot and its authored printer
+assets. Keep those assets with the runtime, not with this application.
+lib_tptp locates its default assets through the runtime's library root;
+explicit reader-snapshot and printer-root overrides remain available.
+The port needs neither Python nor Prolog at runtime.
+
+In a matching CeTTa source checkout, the standalone runtime can be built with:
+
+  make BUILD=core ENABLE_GMP=0 ENABLE_LIB_PROLOG=0
+
+Add ENABLE_HTTP=1 for LLM requests (the build then needs libcurl). Build-time
+generators may use Python; the resulting core application does not. Use the
+runtime from this integration, including its library/langdef assets and the
+PeTTa complete-call arity correction, rather than assuming an older binary
+has the same features.
+
+Scope and code map
+------------------
+
+Phase 1 is the proving application: corpus preparation, learned premise
+selection, THF/Vampire advice, guarded Lean reconstruction (including
+induction/Duper), resumable experiments and optional LLM/DSP proposals.
+The corresponding .metta files live beside the unchanged Python reference
+modules in phase1/. Fixed Lean runner/checker modules live in lib/.
+
+This is not a claim that every Python file in the repository was rewritten.
+The historical try_*/rebuild_* scripts are experiments over strategies now
+available as reusable MeTTa operations and configurable runs; their separate
+command-line scripts remain Python. The report/ Word/PDF publishing scripts
+also remain Python. Phase 2/3 memory and reasoning systems are not built by
+this port. Comparison/measurement tests deliberately retain Python as the
+independent oracle; application execution and new-corpus Lean generation do
+not import it.
+
+New experiments should normally combine the existing operations rather than
+add another driver copy: search.metta prepares/ranks, atp.metta emits/runs,
+itp.metta checks, prover.metta composes strategies, experiment.metta records
+and resumes, experiment_workers.metta schedules isolated processes, and
+llm_experiment.metta adds budgeted proposals. Use the *_main.metta files for
+command-line entry and import the definition-only files in other programs.
+The standalone entry files spell out imports because PeTTa 1.0.6 resolves
+them relative to the top-level source.
+
+Start here: an isolated parallel experiment
+------------------------------------------
+
+Copy cetta-run.example.json to cetta-run.json and set corpus/output paths.
+Prepare the fixed Lean tools once, then start the application:
+
+  make prepare-cetta-itp-native prepare-cetta-duper
+  make run-cetta CETTA=cetta VAMPIRE=vampire RUN_CONFIG=cetta-run.json
+
+The same entry point can be called without Make:
+
+  cetta --no-results --lang petta@1.0.6 phase1/workers_main.metta cetta-run.json
+
+Paths in this JSON configuration are relative to the configuration file,
+not the caller's directory. A bare lean/vampire executable name uses PATH;
+paths containing a slash are relative to the configuration. LEAN_BIN and
+VAMPIRE_BIN provide defaults. Workers use the same CeTTa executable as the
+coordinator, whose binary hash is part of the experiment identity.
+When using Make, its LEAN and VAMPIRE variables supply those defaults;
+explicit fields in the JSON still take precedence.
+itp_runtime selects "native" or "interpreted". The example and make run-cetta
+use native; the definition-only library otherwise defaults to interpreted.
+CETTA_ITP_RUNTIME supplies a default when the configuration omits the field.
+Native preparation builds the fixed guard and tactic worker, not proposed
+proofs. Their source manifest and Lean installation are checked once per
+prepared context; a stale bundle requests preparation instead of executing.
+make test-cetta-itp-native runs the same acceptance/rejection controls on it.
+The POSIX/Linux coordinator uses flock, mkdir, sha256sum and /proc/self/exe.
+
+workers is an explicit positive count; one selects sequential execution.
+Each worker prepares its contexts once and processes independent goals.
+Choose workers to fit the memory/CPU resources available to your run. This
+is process concurrency, not shared mutable evaluator threads.
+
+The output directory must not already exist for Fresh mode; its parent
+must exist. Change mode to Resume to continue the same run. A process lock
+prevents two public coordinators writing that directory concurrently (exit
+4 means another coordinator owns it). Resume validates corpus, application,
+options, binary and partition identity; changing the worker count requires
+a new directory. Saved successful tactics are independently rechecked in
+their recorded core/Duper profile, not silently checked without the tactics'
+trusted imports. Pinned Lean/Duper configuration sources are fingerprinted.
+
+For a small first run, add:
+
+  "goals": ["andI", "orIL"],
+  "slices": [], "lean_stages": ["base"],
+  "induction": false, "use_duper": false
+
+Remove these overrides for the full experiment. Optional stride (default 1),
+skip (0) and limit (0 means all) select a source-ordered subset after the
+optional goals filter. Duplicate or unknown goal names are rejected, as
+are unknown configuration keys. profile is PythonV4 or CettaFull. Optional
+vampire_seconds, lean, vampire, trace and worker_timeout_ms are explicit
+controls; worker_timeout_ms defaults to zero (unbounded). A worker deadline
+does not mean its unfinished theorems are unprovable.
+
+Workers own worker-N.jsonl journals and optional worker-N-traces directories.
+Freshly validated worker-N.snapshot.jsonl files contain the current checked
+results, including refreshed dependency data on resume. Only after every
+worker completes and all goal identities/counts agree is joined.jsonl
+published by a same-filesystem rename of a separately written pending file.
+Manifests and worker snapshots use the same publication operation. This
+prevents partial replacement visibility; it does not promise power-failure
+durability. A failed replacement retains its pending file for inspection.
+joined.jsonl is the normal input to the LLM-proposal driver. A failed
+or cancelled worker leaves its journal available for resume and does not
+publish a new joined result. An older completed joined file, if any, stays
+the last completed observation; do not interpret it as a new completion.
+No worker's stdout is treated as proof acceptance.
+Worker processes set TMPDIR to the run's tmp directory. A hard-killed attempt
+can leave a certificate directory there for inspection, but not in the
+system's default temporary directory. Successful guards clean their own
+certificate directories. Resume rechecks permit the Duper profile's
+one-million-heartbeat budget as well as the core profile.
+
+The final AiWorkers:Summary reports counts of proved, not-proved, unfinished
+and faulted goals. Exit 0 means all scheduled strategies completed (some
+goals may remain not-proved); 3 means unfinished work; 2 means a fault or
+invalid request. The worker test compares actual one/two-process proofs and
+rechecked resume without relying on timing thresholds:
+
+  make test-cetta-workers CETTA=cetta VAMPIRE=vampire CORPUS=data/corpus.sexpr
+
+The test driver's --worker-counts 1,2,4 option also exercises four workers.
+
+Process cancellation/deadlines have lib/proc's process-group guarantee;
+descendants that start separate groups are outside that guarantee. In
+particular this is not an OS sandbox or a transitive process-tree supervisor.
+The individual solver/Lean attempt policies still apply to nested jobs.
+
+Entry files collect application imports explicitly. This respects PeTTa
+1.0.6's top-level-source-relative import semantics. Shared dependencies use
+the (library list) and (library lib_tptp) namespace instead of source-tree
+paths. See atp_main.metta for the complete import sequence.
+
+Reusable application operations
+------------------------------
+
+  (ai-math:load-library path)
+  (ai-math:search declarations)
+  (ai-math:rank search goal-index)
+  (ai-math:search-recall search (8 16 32 64))
+  (ai-math:thf declarations corpus-path)
+  (ai-math:atp-goal thf-context search goal-name vampire seconds limit)
+  (ai-math:itp declarations application-root lean-executable)
+  (ai-math:itp-check itp-context goal-name tactic-text)
+  (ai-math:itp-check-with itp-context goal-name tactic-text (AiITP:Budget milliseconds heartbeats recursion))
+  (ai-math:itp-statement itp-context goal-name)
+  (ai-math:itp-load-statements itp-context)
+  (ai-math:itp-signature statements goal-name)
+  (ai-math:itp-batch itp-context goal-name candidates)
+  (ai-math:itp-batch-with itp-context goal-name candidates budget)
+  (ai-math:itp-batch-resilient itp-context goal-name candidates batch-budget single-budget retry-milliseconds)
+  (ai-math:prover declarations corpus-path application-root lean-executable vampire-executable)
+  (ai-math:prover-with-profile declarations corpus-path application-root lean-executable vampire-executable profile)
+  (ai-math:prover-with declarations corpus-path application-root lean-executable vampire-executable options)
+  (ai-math:prover-hints prover-context goal-name)
+  (ai-math:prove prover-context goal-name)
+  (ai-math:prove-with prover-context goal-name extra-candidates)
+
+Prepare the search and THF contexts once, then reuse them for multiple
+goals. They carry space references, not whole corpora. Search prepares one
+training ledger per premise; each query selects evidence strictly before
+its source ordinal, even when goals are queried out of order. Self and
+citation events remain separate so changing self-weight needs no rebuilding
+and preserves the sequence of floating additions. The arbitrary-subset
+naive-bayes operation remains available alongside naive-bayes-prefix.
+THF retains statements and definition bodies, never unused proof terms or
+search features. Compact TPTP values hold the generated problem.
+The default definition closure is transitive with a
+visited set. The optional numeric depth argument reproduces bounded
+expansion when requested. Original declaration names survive allocation of
+injective problem-local TPTP identifiers.
+
+Unresolved translations remain explicit interpretation requests. They are
+reported with the problem, not converted into invented formulas. The ATP
+bridge sends the problem through the existing process API and extracts
+premise references inside complete SZS blocks. Parsed TPTP annotations are
+preferred; a separately tagged lexical-hint path handles producer extensions.
+Timeouts, launch failures, incomplete process input/output and unfinished
+SZS blocks remain distinct from completed solver advice. A process deadline
+cannot preempt the host's own process-creation call.
+
+Vampire is untrusted. AiATP:Advice is not a checked proof. The controller
+explicitly reports its strategy coverage, including optional Duper and
+induction reconstruction.
+
+Format boundaries
+-----------------
+
+Typed-export records use the ordinary inert MeTTa reader and explicit
+declaration/term constructors. Lean generation rejects missing proofs,
+unbound variables, unresolved references and inconsistent statement-hash
+claims. The shared authored TPTP reader and printer handle solver problems
+and proof annotations; SZS metadata is read independently of formula syntax.
+JSONL protocols use the existing JSON library's explicit legacy value codec
+over its RFC-8259 parser. Lean proposals use Lean's own term/tactic parser.
+
+Some Vampire versions emit a bare hyphenated inference-rule name, which is
+not strict TPTP. The producer adapter first tries strict parsing unchanged.
+Only after that fails does it quote such rule names, protecting quoted
+text/comments and recording original UTF-8 byte spans. The strict reader
+then validates the adjusted payload. Raw solver output remains evidence;
+the strict grammar is not weakened. If other annotations prevent parsing,
+AiATP:LexicalAdvicePayload retains that failure plus lexical file-reference
+hints with raw spellings and byte spans. Quoted text, comments and longer
+identifiers cannot supply those hints. This is search advice, not a parsed
+derivation or a proof certificate. Unterminated lexical input stays rejected.
+Printer faults, incomplete captures and uninterpreted payloads enter the
+controller's fault/incomplete ledger; they are not completed search coverage.
+This application adapter has conformance
+tests, not a formal source-to-reader refinement theorem.
+
+Lean acceptance
+---------------
+
+The existing JSON library transports requests to a fixed Lean guard via
+stdin. No temporary Lean source is generated. The POSIX env utility sets
+LEAN_PATH without discarding the inherited process environment. Lean parses
+the proposal only as the body of a by term, with complete-input checking.
+The expected type is the original theorem's actual imported expression.
+The tactic worker writes its resulting declarations into a temporary Lean
+module. In a separate process, the guard reads that module as data, replays
+every new declaration through Lean's kernel against fixed imports, checks the
+original theorem type, and derives the imported dependency frontier and
+transitive axioms. The temporary module is removed after the guard returns.
+The worker's JSON and stdout cannot by themselves establish acceptance.
+
+MeTTa accepts only complete successful process observations with one intact
+JSON response for the requested target. Every cited Megalodon declaration
+must precede that target; only the nine proved bridge names are exempt.
+The statement catalogue loads all requested types with one Lean import and
+stores them in an ordinary indexed space. The printed types are for prompts
+and advice; checking always uses the actual imported expression.
+Core axioms are restricted to propext, Classical.choice and Quot.sound.
+Megalodon axioms and parameters must be present earlier in the source.
+sorryAx, new local axioms, unsafe or partial local declarations, and unknown
+axioms are not accepted. Capture truncation, process failure, malformed
+responses and exhausted budgets cannot become acceptance. Resource exhaustion
+is unfinished, not a rejected proof.
+
+All three budget fields default to zero (unbounded). The wall deadline covers
+the process; heartbeat and recursion budgets cover Lean elaboration. These
+are optional controls, not limits on the source language. The process API's
+deadline does not preempt the host's own process-creation call.
+
+The Lean executable, fixed runner and compiled library are trusted inputs.
+The configuration's corpus must correspond to the prepared lib/MegLib
+library. After changing corpora, regenerate MegLib.lean and rebuild the
+Lean prerequisites before proving. Configuration establishes this trusted
+pairing; the guard checks the imported statement, not an automatic proof of
+correspondence between the export and an independently chosen Lean library.
+Lean metaprograms can perform I/O: this is not an OS sandbox for hostile
+tactics. Checking the exact translated Lean statement is also not a theorem
+that the Megalodon-to-Lean translation preserves every source judgment.
+The source-order guard constrains proof dependencies, not information flow:
+the full imported library contains original proofs that a hostile metaprogram
+could inspect. Independent benchmark runs therefore require trusted tactic
+strategies or stronger isolation of the source prefix.
+
+Controller and batched attempts
+------------------------------
+
+A candidate is ordinary data: (AiITP:Candidate "label" "tactic text"). A batch
+imports Lean and Bridge once, but each candidate starts with the same base
+environment, fresh command state and a fresh elaboration budget. Failed
+attempts and self-citing proposals cannot introduce lemmas into the next
+attempt. Duplicate labels remain separate occurrences, identified by their
+position. MeTTa validates every returned occurrence and applies the same
+dependency and axiom guards as for a single attempt. This is logical-state
+isolation, not isolation of metaprograms' operating-system side effects.
+
+An intact reply is (AiITP:Batch goal attempts), whose entries have the shape
+(AiITP:Attempt label result). A wall deadline cannot publish partial results
+as a completed batch. itp-batch-resilient retries isolated candidates after
+such a deadline; single budgets and an optional retry-phase deadline are
+explicit arguments. Remaining retries are skipped only after acceptance.
+
+The controller prepares search, THF and ITP contexts once and reuses them.
+Every requested Vampire slice is tried. Distinct sufficient premise lists
+are retained, together with goal definitions, solver-used definitions and
+the structured advice trace. Tactics are transported as JSON data to the
+fixed runner, not interpolated into generated Lean source files.
+
+The deterministic strategies match the original Python controller:
+
+  base       cheap tactics and optional extra candidates;
+  followup   alternate premise sets and stronger reconstruction tactics;
+  apply      backward application of one sufficient premise, then automation;
+  duper      optional reconstruction using the pinned Duper package.
+
+The next stage is generated only after the current stage has no accepted
+proof. Within a batch every candidate is checked; the earliest accepted
+occurrence wins. Extra proposals, including later LLM suggestions, go through
+the same acceptance boundary.
+
+Options are a tuple of named values. For example, this reduces solver work
+and selects only the base tactics:
+
+  ((slices (8 16)) (vampire-seconds 2) (lean-stages (base)))
+
+The default application profile reproduces Python's budgets: six Vampire
+slices (16 32 64 128 256 512), 30 seconds per slice; Lean batches of 120 seconds
+for base and 300 seconds for followup/apply; 200000 heartbeats and recursion
+depth 8000 per candidate. These are overridable application search policies,
+not ceilings on MeTTa or Lean. The underlying ITP operations remain unbounded
+by default. Override a stage, including its retry policy, with:
+
+  (base (AiProver:LeanPolicy (AiITP:Budget 0 0 0) (AiITP:Budget 0 0 0) 0))
+
+search-options accepts the existing premise selector's named options. Reusing
+contexts does not change the strictly-earlier source cutoff for each goal.
+definition-depth defaults to All (transitive closure). The CettaFull profile
+names that default. PythonV4 freezes the published Python-v4 discovery
+policy, including definition depth 3 and its solver/reconstruction budgets.
+An explicit natural number selects bounded unfolding for both direct and
+induction problems. Different
+unfolding/tool/budget profiles can discover different proofs, even though
+every accepted proof is checked at the same original statement.
+
+The result is (AiProver:Result name index hints attempts outcome). It retains
+the exact tactic, stage and occurrence ordinal for every attempt. Only an
+AiITP:Accepted result produces AiProver:Proved. AiProver:NotProved means the
+listed strategies completed without a checked proof, not that the proposition
+is false. Unfinished attempts and operational faults remain distinct outcomes.
+Solver failures remain visible in the hint trace even if a later independent
+Lean proof succeeds. The controller CLI uses exit codes 0, 1, 3 and 2 for
+proved, not proved, unfinished and faulted, respectively.
+
+Induction and Duper
+-------------------
+
+Induction splits are derived from the actual earlier source principles,
+not duplicated mathematical recipes. Binder identities survive motive
+substitution. Each proposed case is checked as a closed Lean theorem in
+its real local context, and the assembled proof is checked again at the
+original goal. A missing Vampire case proof is not a proof of impossibility:
+the controller may try local reconstruction without solver advice.
+
+  (ai-math:induction-prove prover-context goal-name)
+  (ai-math:itp-select-profile itp-context duper)
+  make prepare-cetta-duper
+
+Duper's source and transitive dependencies are pinned in tools/duper-env.
+Its proofs pass the same dependency/axiom guards. use-duper accepts Auto,
+true or false; Auto selects it only when its compiled profile is present.
+induction, induction-slices, induction-seconds, induction-policy and
+induction-final are explicit controller options. induction-without-advice
+defaults to true in CettaFull: local reconstruction is allowed when Vampire
+has not supplied case proofs. PythonV4 sets it to false to preserve the
+reference's discovery policy. Neither policy treats missing solver advice
+as mathematical impossibility.
+
+Corpus preparation without Python
+---------------------------------
+
+  cetta --no-results --lang petta@1.0.6 phase1/lean_export_main.metta data/corpus.sexpr lib/MegLib.lean
+  make prepare-cetta-itp
+
+Every theorem is emitted with its original proof term. Only declared source
+parameters, primitives and axioms become axioms; missing theorem proofs do
+not become assumed declarations. Global names are qualified to prevent
+local binder capture. A successful Lean build checks the translated proof
+terms, but does not by itself prove the translator preserves source meaning.
+The bridge expects the corpus's standard encoded logical definitions.
+
+For the authoritative All.lean plus five standalone dependency-closed
+category views, create an output directory and pass --views:
+
+  mkdir -p .cetta/generated
+  cetta --no-results --lang petta@1.0.6 phase1/lean_export_main.metta data/corpus.sexpr .cetta/generated --views
+
+Categories reproduce the original vocabulary heuristic. They are browsing
+views, not disjoint mathematical theories. Original declaration order and
+all named dependencies are retained.
+
+Experiments and resume
+----------------------
+
+  cetta --no-results --lang petta@1.0.6 phase1/experiment_main.metta data/corpus.sexpr results/cetta.jsonl 33 Fresh vampire lean 0 PythonV4 -
+  cetta --no-results --lang petta@1.0.6 phase1/experiment_main.metta data/corpus.sexpr results/cetta.jsonl 33 Resume vampire lean 0 PythonV4 -
+
+Stride 1 selects all theorem goals. Optional trailing arguments select the
+Vampire and Lean executables, a shard in [0,stride), and the discovery
+profile. Reusable calls are run-open, run-targets, run-targets-shard, run-one
+and run. The old run-targets operation selects shard zero. Shards partition
+the theorem sequence without overlap; each operating-system process owns its
+own log. Scheduling does not change a per-goal result's semantics, so shards
+from the same run identity remain comparable. Contexts are prepared once per
+process. Set CETTA_BUILD_ID to the executable/build identity for reproducible
+resume checks.
+
+The final optional argument enables successful-solver trace retention in an
+existing directory; `-` keeps the compact default. Each successful slice
+stores the exact generated problem as SHA256.problem.p and raw solver output
+as SHA256.solver.szs. The JSONL result records their hashes, byte lengths and
+the digest of the payload observation (parsed records or lexical hints with
+their original parse failure). Existing objects are read back and compared
+before reuse; a write or content mismatch remains an explicit trace fault.
+Use a separate trace directory for each concurrent shard. These files are
+untrusted reconstruction evidence, not proof certificates or acceptance.
+The run identity records the enabled SuccessfulSolverEvidenceV1 policy, not
+the host-specific directory spelling, so separate shard directories retain
+one semantic experiment identity. Enabling versus disabling retention still
+changes that identity and cannot be mixed silently on resume.
+
+The JSONL header fingerprints corpus bytes, application/helper sources,
+controller options and the declared toolchain. A changed identity refuses
+resume. Fresh mode refuses an existing log. Each goal records its exact
+tactic, solver status, premise sets, definitions, elapsed nanoseconds and
+structured outcome; opaque evidence is diagnostic data, never evaluated.
+Malformed/torn lines are reported and retried. Unfinished/faulted goals are
+retried. Saved successes are rechecked in Lean, and dependency metadata is
+recomputed before they count. A saved completed strategy miss can be reused
+under the same identity; it is not a theorem that no proof exists.
+One writer owns each log. Use an external process lock for competing writers.
+Appending is not a power-failure persistence guarantee.
+
+Optional LLM proposals
+----------------------
+
+  (ai-math:llm-prove prover-context client goal premises definitions rounds budget)
+  (ai-math:dsp-prove prover-context client goal premises definitions repairs budget)
+
+Direct mode proposes tactics and feeds Lean rejection back. Draft/sketch
+mode first requests an informal argument, then a Lean outline whose routine
+steps can use `by ai_math_auto [definitions]`. This closing tactic must
+produce a proof or fail; no textual admission replacement is used. Both
+modes use the same guarded Lean acceptance path and actual imported types.
+Prompts expose earlier fact types and definition values, not theorem proofs.
+
+For a JSONL baseline, invoke:
+
+  cetta --no-results --lang petta@1.0.6 phase1/llm_experiment_main.metta run-config.json
+
+A minimal configuration is:
+
+  {"corpus":"data/corpus.sexpr", "baseline":"results/cetta.jsonl",
+   "output":"results/proposals.jsonl", "model":"YOUR_MODEL",
+   "ledger":"results/calls.jsonl", "call_cap":10, "mode":"direct",
+   "rounds":3, "allow_unsandboxed_metaprograms":true}
+
+LLM_BASE_URL and LLM_API_KEY are explicit environment inputs; .env is not
+read automatically. Use an HTTP-enabled CeTTa build. No default model is
+selected. token_field selects max_tokens or max_completion_tokens for the
+chosen endpoint. Optional stride, limit (0 means all), skip, vampire_only,
+resume, lean and vampire fields control the application run. DSP rounds
+means repair rounds. Baseline premise/definition fields are advice only;
+prompts and acceptance are checked against the current source catalogue.
+
+Credentials stay out of command arguments, output and usage records. The
+call ledger reserves before HTTP submission under flock; retries count and
+crashes do not refund calls. A malformed ledger fails closed. A shared HTTP
+session owns io:poll and retains interleaved completions by ID. Waiting uses
+proc:wait, not a busy loop. This POSIX runner uses flock and sleep utilities.
+
+Important: the proof runner is not an OS sandbox. A Lean metaprogram can
+perform I/O or inspect imported proofs. The explicit consent flag acknowledges
+that risk; it does not remove it. Do not execute hostile proposals alongside
+secrets or treat such a run as an isolated independent-discovery benchmark.
+Kernel/dependency guards validate proof terms, not their information sources.
+
+Comparison tests
+----------------
+
+Python is used only as the independent test oracle. The existing Python
+files are unchanged, and the test drivers verify their pinned source hashes.
+To run examples, generated cases, solver I/O and corpus comparisons:
+
+  make -k test-cetta CETTA=cetta VAMPIRE=tools/vampire CORPUS=data/corpus.sexpr
+
+Supplying CORPUS also exercises the complete recall calculation. The -k
+option runs the remaining independent stages after a failure while retaining
+a failing exit status. Omit CORPUS to run fixtures and generated cases only.
+Vampire must be supplied for the ATP tests. Generated comparison inputs go
+under .cetta/, which is ignored by Git. No application tests require the
+CeTTa source directory as the working directory.
+
+test-cetta-itp builds the Lean prerequisites. Without CORPUS it runs only
+transport and policy controls and explicitly reports skipped integration.
+With CORPUS it checks real proofs, the original Python guard controls,
+self/later/auxiliary leakage, missing proofs, injected commands, local axioms,
+forged early-exit responses, resource outcomes and the command-line consumer.
+Optional source-line annotations are projected before the pinned Python
+loader, without modifying its algorithms or its original source hash.
+
+test-cetta-prover checks candidate text and strategy order against prover.py,
+batch protocol and resource controls, actual solver-to-Lean runs, later-stage
+reconstruction and the Python-free command-line consumer. It needs CORPUS
+and VAMPIRE for the real solver/kernel checks, and otherwise reports their
+omission explicitly. It does not claim the full 640/999 discovery result.
+
+The induction/source gate compares all goal splits when CORPUS is supplied.
+test-cetta-ranked-bridge compares actual ranked 16/32/64/128/256/512-premise
+problems for a spread of corpus goals, including the known bridge regressions.
+Use tests/check_ai_mathematician_ranked_bridge.py with --all for every goal.
+This complements the exhaustive small-premise translation gate rather than
+mistaking four premises per goal for large-problem coverage.
+The reconstruction gate checks actual closed cases, assembled induction and
+optional Duper (DUPER=1). The exporter gate compares generated source and
+compiles the complete library plus category views. Experiment controls cover
+resume, torn JSONL and rechecked claims. The LLM gate uses only a local fixture
+server and fake credentials; pass HTTP_CETTA to exercise its HTTP path. No
+test makes a paid model call. These are conformance/acceptance checks, not
+formal proofs of application translation or full-corpus discovery parity.
+
+Performance measurements
+------------------------
+
+  python3 tests/benchmark_ai_mathematician.py --cetta cetta --corpus data/corpus.sexpr --component recall
+
+Components setup, recall and thf separate loading, preparation and actual
+work using the runtime's monotonic nanosecond clock. On POSIX the driver also
+records CPU time and peak resident memory. Repeated runs check answer
+stability. --search-source and --atp-source support same-binary source
+comparisons; source, corpus and executable hashes identify each observation.
+No timing is used as a correctness assertion. The Python driver and the
+THF primitive-map oracle are measurement tools, not application dependencies.

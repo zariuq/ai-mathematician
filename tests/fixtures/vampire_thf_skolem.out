@@ -1,0 +1,188 @@
+% SZS status Theorem
+% SZS output start Proof for
+thf(type_def_5, type, set: $tType).
+thf(type_def_6, type, sTfun: ($tType * $tType) > $tType).
+thf(func_def_0, type, c_468: ((set > (set > $o) > $o) > set)).
+thf(func_def_1, type, c_469: ((set > (set > $o) > $o) > set > $o)).
+thf(func_def_2, type, c_263: (((set > $o) > $o) > set > $o)).
+thf(func_def_3, type, c_17: set).
+thf(func_def_4, type, c_0: ((set > $o) > set)).
+thf(func_def_5, type, c_96: ($o > set > set > set)).
+thf(func_def_6, type, c_13: (set > set > $o)).
+thf(func_def_7, type, c_471: (set > (set > $o) > (set > $o) > $o)).
+thf(func_def_8, type, c_491: (set > (set > $o) > set > (set > $o) > $o)).
+thf(func_def_9, type, c_481: (set > (set > $o) > set > (set > $o) > $o)).
+thf(func_def_10, type, c_476: (set > (set > $o) > (set > $o) > $o)).
+thf(func_def_11, type, c_506: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > $o)).
+thf(func_def_12, type, c_542: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set)).
+thf(func_def_13, type, c_500: ((set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_14, type, c_538: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_15, type, c_539: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_16, type, c_522: (set > (set > (set > $o) > $o) > $o)).
+thf(func_def_17, type, c_543: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set > $o)).
+thf(func_def_18, type, c_510: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_19, type, c_509: ((set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_20, type, c_518: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_21, type, c_508: ((set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_22, type, c_529: ((set > (set > $o) > $o) > (set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_23, type, c_528: ((set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_24, type, c_527: ((set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_25, type, c_501: ((set > (set > $o) > $o) > set > (set > $o) > $o)).
+thf(func_def_26, type, c_558: (set > (set > $o) > set)).
+thf(func_def_27, type, c_21: (set > set)).
+thf(func_def_28, type, c_23: (set > (set > set) > set)).
+thf(func_def_29, type, c_138: (set > (set > $o) > (set > set) > set)).
+thf(func_def_30, type, c_562: (set > $o)).
+thf(func_def_31, type, c_597: (set > set > set)).
+thf(func_def_32, type, c_598: (set > set > $o)).
+thf(func_def_33, type, c_555: (set > set)).
+thf(func_def_34, type, c_573: (set > set > set > $o)).
+thf(func_def_35, type, c_612: (set > set)).
+thf(func_def_36, type, c_577: (set > set > $o)).
+thf(func_def_37, type, c_564: (set > set)).
+thf(func_def_38, type, c_576: (set > set > $o)).
+thf(func_def_39, type, c_613: (set > set)).
+thf(func_def_40, type, c_603: (set > set)).
+thf(func_def_41, type, c_557: (set > set > $o)).
+thf(func_def_42, type, c_130: (set > (set > $o) > set)).
+thf(func_def_43, type, c_122: (set > set > set)).
+thf(func_def_44, type, c_105: (set > set)).
+thf(func_def_45, type, c_14: (set > set > $o)).
+thf(func_def_46, type, c_25: (set > $o)).
+thf(func_def_47, type, c_101: (set > set > set)).
+thf(func_def_48, type, c_19: (set > set)).
+thf(func_def_49, type, c_142: (set > set > set)).
+thf(func_def_50, type, c_108: (set > set > set)).
+thf(func_def_51, type, c_82: ($o > $o > $o)).
+thf(func_def_52, type, c_123: (set > (set > set) > set)).
+thf(func_def_53, type, c_40: (set > set > $o)).
+thf(func_def_54, type, c_230: (set > $o)).
+thf(func_def_55, type, c_163: (set > set)).
+thf(func_def_57, type, vPI: !>[X0: $tType]:(((X0 > $o) > $o))).
+thf(func_def_58, type, vIMP: ($o > $o > $o)).
+thf(func_def_59, type, db3: !>[X0: $tType]:(X0)).
+thf(func_def_60, type, db0: !>[X0: $tType]:(X0)).
+thf(func_def_61, type, vIFF: ($o > $o > $o)).
+thf(func_def_62, type, db2: !>[X0: $tType]:(X0)).
+thf(func_def_63, type, db1: !>[X0: $tType]:(X0)).
+thf(func_def_64, type, vLAM: !>[X0: $tType, X1: $tType]:((X1) > (X0 > X1))).
+thf(func_def_65, type, vOR: ($o > $o > $o)).
+thf(func_def_66, type, vAND: ($o > $o > $o)).
+thf(func_def_67, type, vNOT: ($o > $o)).
+thf(func_def_68, type, vSIGMA: !>[X0: $tType]:(((X0 > $o) > $o))).
+thf(func_def_69, type, db4: !>[X0: $tType]:(X0)).
+thf(func_def_70, type, db5: !>[X0: $tType]:(X0)).
+thf(func_def_71, type, vEQ: !>[X0: $tType]:((X0 > X0 > $o))).
+thf(func_def_72, type, db6: !>[X0: $tType]:(X0)).
+thf(func_def_75, type, sP0: (set > set > $o)).
+thf(func_def_76, type, sP1: (set > set > $o)).
+thf(func_def_77, type, sK2: set).
+thf(func_def_78, type, sK3: set).
+thf(func_def_79, type, sK4: set).
+thf(func_def_80, type, sK5: (set > set > set)).
+thf(func_def_81, type, sK6: (set > set > set)).
+thf(func_def_82, type, sK7: (set > set > set)).
+thf(func_def_83, type, sK8: (set > set > set)).
+thf(func_def_84, type, sK9: (set > set)).
+thf(func_def_85, type, sK10: ((set > set) > set > set)).
+thf(func_def_86, type, sP11: ($o > $o)).
+thf(f53,axiom,(
+  ! [X0 : set] : ! [X1 : set] : ((c_598 @ X0 @ X1) => ! [X2 : $o] : (((c_562 @ (c_597 @ X0 @ X1)) => ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[X3 : set] : ((c_163 @ (c_564 @ X3))))) @ (c_123 @ X1 @ (^[X3 : set] : ((c_163 @ (c_564 @ X3)))))))) => (! [X3 : set] : ((c_13 @ X3 @ X0) => (c_576 @ X3 @ (c_597 @ X0 @ X1))) => (! [X3 : set] : ((c_13 @ X3 @ X1) => (c_576 @ (c_597 @ X0 @ X1) @ X3)) => (! [X3 : set] : ((c_562 @ X3) => (! [X4 : set] : ((c_13 @ X4 @ X0) => (c_576 @ X4 @ X3)) => (! [X4 : set] : ((c_13 @ X4 @ X1) => (c_576 @ X3 @ X4)) => ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X3) & (c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X3)))))) => X2))))) => X2))),
+  file(unknown,c_600)).
+thf(f111,conjecture,(
+  ! [X0 : set] : ! [X1 : set] : ((c_598 @ X0 @ X1) => ! [X2 : set] : ((c_13 @ X2 @ X1) => (c_576 @ (c_597 @ X0 @ X1) @ X2)))),
+  file(unknown,goal)).
+thf(f112,negated_conjecture,(
+  ~! [X0 : set] : ! [X1 : set] : ((c_598 @ X0 @ X1) => ! [X2 : set] : ((c_13 @ X2 @ X1) => (c_576 @ (c_597 @ X0 @ X1) @ X2)))),
+  inference(negated_conjecture,[status(cth)],[f111])).
+thf(f211,plain,(
+  ! [X0 : set] : ! [X1 : set] : ((c_598 @ X0 @ X1) => ! [X2 : $o] : (((c_562 @ (c_597 @ X0 @ X1)) => ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[X3 : set] : ((c_163 @ (c_564 @ X3))))) @ (c_123 @ X1 @ (^[X4 : set] : ((c_163 @ (c_564 @ X4)))))))) => (! [X5 : set] : ((c_13 @ X5 @ X0) => (c_576 @ X5 @ (c_597 @ X0 @ X1))) => (! [X6 : set] : ((c_13 @ X6 @ X1) => (c_576 @ (c_597 @ X0 @ X1) @ X6)) => (! [X7 : set] : ((c_562 @ X7) => (! [X8 : set] : ((c_13 @ X8 @ X0) => (c_576 @ X8 @ X7)) => (! [X9 : set] : ((c_13 @ X9 @ X1) => (c_576 @ X7 @ X9)) => ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X7) & (c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X7)))))) => X2))))) => X2))),
+  inference(rectify,[],[f53])).
+thf(f212,plain,(
+  ! [X0 : set] : ! [X1 : set] : ((((c_598 @ X0 @ X1)) = $true) => ! [X2 : $o] : (((((c_562 @ (c_597 @ X0 @ X1))) = $true) => (($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0))))))))) => (! [X5 : set] : ((((c_13 @ X5 @ X0)) = $true) => ($true = ((c_576 @ X5 @ (c_597 @ X0 @ X1))))) => (! [X6 : set] : (($true = ((c_13 @ X6 @ X1))) => ($true = ((c_576 @ (c_597 @ X0 @ X1) @ X6)))) => (! [X7 : set] : (($true = ((c_562 @ X7))) => (! [X8 : set] : (($true = ((c_13 @ X8 @ X0))) => ($true = ((c_576 @ X8 @ X7)))) => (! [X9 : set] : (($true = ((c_13 @ X9 @ X1))) => ($true = ((c_576 @ X7 @ X9)))) => (($true = ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X7))) & ($true = ((c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X7)))))))) => ($true = X2)))))) => ($true = X2)))),
+  inference(fool_elimination,[],[f211])).
+thf(f324,plain,(
+  ~! [X0 : set] : ! [X1 : set] : ((c_598 @ X0 @ X1) => ! [X2 : set] : ((c_13 @ X2 @ X1) => (c_576 @ (c_597 @ X0 @ X1) @ X2)))),
+  inference(rectify,[],[f112])).
+thf(f325,plain,(
+  ~! [X0 : set] : ! [X1 : set] : ((((c_598 @ X0 @ X1)) = $true) => ! [X2 : set] : ((((c_13 @ X2 @ X1)) = $true) => (((c_576 @ (c_597 @ X0 @ X1) @ X2)) = $true)))),
+  inference(fool_elimination,[],[f324])).
+thf(f326,plain,(
+  ~! [X0 : set,X1 : set] : ((((c_598 @ X0 @ X1)) = $true) => ! [X2 : set] : ((((c_13 @ X2 @ X1)) = $true) => (((c_576 @ (c_597 @ X0 @ X1) @ X2)) = $true)))),
+  inference(flattening,[],[f325])).
+thf(f335,plain,(
+  ! [X0 : set] : ! [X1 : set] : ((((c_598 @ X0 @ X1)) = $true) => ! [X2 : $o] : (((((c_562 @ (c_597 @ X0 @ X1))) = $true) => (($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0))))))))) => (! [X3 : set] : ((((c_13 @ X3 @ X0)) = $true) => (((c_576 @ X3 @ (c_597 @ X0 @ X1))) = $true)) => (! [X4 : set] : ((((c_13 @ X4 @ X1)) = $true) => ($true = ((c_576 @ (c_597 @ X0 @ X1) @ X4)))) => (! [X5 : set] : ((((c_562 @ X5)) = $true) => (! [X6 : set] : ((((c_13 @ X6 @ X0)) = $true) => ($true = ((c_576 @ X6 @ X5)))) => (! [X7 : set] : (($true = ((c_13 @ X7 @ X1))) => ($true = ((c_576 @ X5 @ X7)))) => (($true = ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X5))) & ($true = ((c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X5)))))))) => ($true = X2)))))) => ($true = X2)))),
+  inference(rectify,[],[f212])).
+thf(f336,plain,(
+  ! [X0 : set,X1 : set] : ((((c_598 @ X0 @ X1)) = $true) => ! [X2 : $o] : (((((c_562 @ (c_597 @ X0 @ X1))) = $true) => (($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0))))))))) => (! [X3 : set] : ((((c_13 @ X3 @ X0)) = $true) => (((c_576 @ X3 @ (c_597 @ X0 @ X1))) = $true)) => (! [X4 : set] : ((((c_13 @ X4 @ X1)) = $true) => ($true = ((c_576 @ (c_597 @ X0 @ X1) @ X4)))) => (! [X5 : set] : ((((c_562 @ X5)) = $true) => (! [X6 : set] : ((((c_13 @ X6 @ X0)) = $true) => ($true = ((c_576 @ X6 @ X5)))) => (! [X7 : set] : (($true = ((c_13 @ X7 @ X1))) => ($true = ((c_576 @ X5 @ X7)))) => (($true = ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X5))) & ($true = ((c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X5)))))))) => ($true = X2)))))) => ($true = X2)))),
+  inference(flattening,[],[f335])).
+thf(f369,plain,(
+  ? [X0 : set,X1 : set] : (? [X2 : set] : ((((c_576 @ (c_597 @ X0 @ X1) @ X2)) != $true) & (((c_13 @ X2 @ X1)) = $true)) & (((c_598 @ X0 @ X1)) = $true))),
+  inference(ennf_transformation,[],[f326])).
+thf(f384,plain,(
+  ! [X0 : set,X1 : set] : (! [X2 : $o] : (($true = X2) | (((((($true != X2) & ! [X5 : set] : ((((($true = ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X5))) & ($true = ((c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X5))))) | ? [X7 : set] : (($true != ((c_576 @ X5 @ X7))) & ($true = ((c_13 @ X7 @ X1))))) | ? [X6 : set] : (($true != ((c_576 @ X6 @ X5))) & (((c_13 @ X6 @ X0)) = $true))) | (((c_562 @ X5)) != $true))) & ! [X4 : set] : (($true = ((c_576 @ (c_597 @ X0 @ X1) @ X4))) | (((c_13 @ X4 @ X1)) != $true))) & ! [X3 : set] : ((((c_576 @ X3 @ (c_597 @ X0 @ X1))) = $true) | (((c_13 @ X3 @ X0)) != $true))) & ($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))))))))) & (((c_562 @ (c_597 @ X0 @ X1))) = $true))) | (((c_598 @ X0 @ X1)) != $true))),
+  inference(ennf_transformation,[],[f336])).
+thf(f385,plain,(
+  ! [X0 : set,X1 : set] : (! [X2 : $o] : (($true = X2) | (($true != X2) & ! [X5 : set] : ((($true = ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X5))) & ($true = ((c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X5))))) | ? [X7 : set] : (($true != ((c_576 @ X5 @ X7))) & ($true = ((c_13 @ X7 @ X1)))) | ? [X6 : set] : (($true != ((c_576 @ X6 @ X5))) & (((c_13 @ X6 @ X0)) = $true)) | (((c_562 @ X5)) != $true)) & ! [X4 : set] : (($true = ((c_576 @ (c_597 @ X0 @ X1) @ X4))) | (((c_13 @ X4 @ X1)) != $true)) & ! [X3 : set] : ((((c_576 @ X3 @ (c_597 @ X0 @ X1))) = $true) | (((c_13 @ X3 @ X0)) != $true)) & ($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0))))))))) & (((c_562 @ (c_597 @ X0 @ X1))) = $true))) | (((c_598 @ X0 @ X1)) != $true))),
+  inference(flattening,[],[f384])).
+thf(f452,plain,(
+  ! [X1 : set,X0 : set] : (! [X5 : set] : ((($true = ((c_573 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_597 @ X0 @ X1) @ X5))) & ($true = ((c_14 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_564 @ X5))))) | ? [X7 : set] : (($true != ((c_576 @ X5 @ X7))) & ($true = ((c_13 @ X7 @ X1)))) | ? [X6 : set] : (($true != ((c_576 @ X6 @ X5))) & (((c_13 @ X6 @ X0)) = $true)) | (((c_562 @ X5)) != $true)) | ~($true = ((sP0 @ X0 @ X1))))),
+  introduced(definition,[new_symbols(naming,[=])],[predicate_definition_introduction])).
+thf(f453,plain,(
+  ! [X0 : set,X1 : set] : (! [X2 : $o] : (($true = X2) | (($true != X2) & ($true = ((sP0 @ X0 @ X1))) & ! [X4 : set] : (($true = ((c_576 @ (c_597 @ X0 @ X1) @ X4))) | (((c_13 @ X4 @ X1)) != $true)) & ! [X3 : set] : ((((c_576 @ X3 @ (c_597 @ X0 @ X1))) = $true) | (((c_13 @ X3 @ X0)) != $true)) & ($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0))))))))) & (((c_562 @ (c_597 @ X0 @ X1))) = $true))) | (((c_598 @ X0 @ X1)) != $true))),
+  inference(definition_folding,[],[f385,f452])).
+thf(f456,plain,(
+  (($true != ((c_576 @ (c_597 @ sK2 @ sK3) @ sK4))) & ($true = ((c_13 @ sK4 @ sK3)))) & ($true = ((c_598 @ sK2 @ sK3)))),
+  inference(skolemize,[status(esa),new_symbols(skolem,[sK2,sK3,sK4]),skolemize(X0,sK2),skolemize(X1,sK3),skolemize(X2,sK4)],[f369])).
+thf(f460,plain,(
+  ! [X0 : set,X1 : set] : (! [X2 : $o] : (($true = X2) | (($true != X2) & ($true = ((sP0 @ X0 @ X1))) & ! [X3 : set] : ((((c_576 @ (c_597 @ X0 @ X1) @ X3)) = $true) | (((c_13 @ X3 @ X1)) != $true)) & ! [X4 : set] : (($true = ((c_576 @ X4 @ (c_597 @ X0 @ X1)))) | (((c_13 @ X4 @ X0)) != $true)) & ($true = ((c_13 @ (c_564 @ (c_597 @ X0 @ X1)) @ (c_163 @ (c_108 @ (c_123 @ X0 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0)))) @ (c_123 @ X1 @ (^[Y0 : set]: (c_163 @ (c_564 @ Y0))))))))) & (((c_562 @ (c_597 @ X0 @ X1))) = $true))) | (((c_598 @ X0 @ X1)) != $true))),
+  inference(rectify,[],[f453])).
+thf(f467,plain,(
+  ($true = ((c_598 @ sK2 @ sK3)))),
+  inference(cnf_transformation,[],[f456])).
+thf(f468,plain,(
+  ($true = ((c_13 @ sK4 @ sK3)))),
+  inference(cnf_transformation,[],[f456])).
+thf(f469,plain,(
+  ($true != ((c_576 @ (c_597 @ sK2 @ sK3) @ sK4)))),
+  inference(cnf_transformation,[],[f456])).
+thf(f498,plain,(
+  ( ! [X2 : $o,X3 : set,X0 : set,X1 : set] : ((((c_598 @ X0 @ X1)) != $true) | (((c_576 @ (c_597 @ X0 @ X1) @ X3)) = $true) | (((c_13 @ X3 @ X1)) != $true) | ($true = X2)) )),
+  inference(cnf_transformation,[],[f460])).
+thf(f622,plain,(
+  ($true != $false)),
+  introduced(definition,[],[fool_distinctness_axiom])).
+thf(f623,plain,(
+  ( ! [X0 : $o] : (($true = X0) | ($false = X0)) )),
+  introduced(definition,[],[fool_exhaustiveness_axiom])).
+thf(f624,plain,(
+  ($false = ((sP11 @ (c_576 @ (c_597 @ sK2 @ sK3) @ sK4))))),
+  introduced(definition,[new_symbols(naming,[sP11])],[inequality_splitting_name_introduction])).
+thf(f625,plain,(
+  ($true = ((sP11 @ $true)))),
+  inference(inequality_splitting,[],[f469,f624])).
+thf(f694,plain,(
+  ( ! [X0 : $o] : ((((sP11 @ X0)) = X0) | ($false = X0)) )),
+  inference(superposition,[],[f625,f623])).
+thf(f696,plain,(
+  ( ! [X0 : $o] : (($true = ((sP11 @ X0))) | ($false = X0) | ($false = X0)) )),
+  inference(iff_proxy_clausification,[],[f694])).
+thf(f697,plain,(
+  ( ! [X0 : $o] : (($true = ((sP11 @ X0))) | ($false = X0)) )),
+  inference(duplicate_literal_removal,[],[f696])).
+thf(f759,plain,(
+  ($true = ((c_576 @ (c_597 @ sK2 @ sK3) @ sK4)))),
+  inference(unit_resulting_resolution,[],[f498,f622,f467,f468])).
+thf(f1168,plain,(
+  ($false = ((sP11 @ $true)))),
+  inference(superposition,[],[f624,f759])).
+thf(f1203,plain,(
+  ($true = $false) | ($true = $false)),
+  inference(superposition,[],[f697,f1168])).
+thf(f1204,plain,(
+  ($true = $false)),
+  inference(duplicate_literal_removal,[],[f1203])).
+thf(f1205,plain,(
+  $false),
+  inference(trivial_inequality_removal,[],[f1204])).
+% SZS output end Proof for

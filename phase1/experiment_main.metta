@@ -1,0 +1,55 @@
+; Sequential experiment with per-goal JSONL observations.
+!(import! &self proc)
+!(import! &self "library.metta")
+!(import! &self (library list))
+!(import! &self (library lib_tptp))
+!(import! &self re)
+!(import! &self "vampire_output.metta")
+!(import! &self "search.metta")
+!(import! &self "atp.metta")
+!(import! &self json)
+!(import! &self system)
+!(import! &self "itp.metta")
+!(import! &self "proof_strategy.metta")
+!(import! &self "induction.metta")
+!(import! &self "induction_prover.metta")
+!(import! &self "prover.metta")
+!(import! &self "experiment.metta")
+
+(= (ai-run-main:text $arg)
+   (if (== (get-metatype $arg) Symbol) (str:symbol->string $arg) $arg))
+(= (ai-run-main:number $arg)
+   (if (== (get-type $arg) Number) $arg
+     (str:string->number (ai-run-main:text $arg))))
+!(if (< (system:argc) 2)
+   (let $printed (println! "usage: experiment_main.metta corpus.sexpr log.jsonl [stride] [Fresh|Resume] [vampire] [lean] [shard] [PythonV4|CettaFull] [trace-directory|-]")
+     (system:exit 2))
+   (let* (($corpus (ai-run-main:text (system:arg 0)))
+          ($log (ai-run-main:text (system:arg 1)))
+          ($stride (if (> (system:argc) 2) (ai-run-main:number (system:arg 2)) 33))
+          ($mode (if (> (system:argc) 3) (str:string->symbol (ai-run-main:text (system:arg 3))) Fresh))
+          ($vampire (ai-run-main:text (if (> (system:argc) 4) (system:arg 4) (system:getenv-or-default "VAMPIRE_BIN" "vampire"))))
+          ($lean (ai-run-main:text (if (> (system:argc) 5) (system:arg 5) (system:getenv-or-default "LEAN_BIN" "lean"))))
+          ($shard (if (> (system:argc) 6) (ai-run-main:number (system:arg 6)) 0))
+          ($profile (if (> (system:argc) 7) (str:string->symbol (ai-run-main:text (system:arg 7))) PythonV4))
+          ($trace-directory (if (> (system:argc) 8) (ai-run-main:text (system:arg 8)) "-"))
+          ($root (fs:canonical-path (str:concat (system:entry-directory) "/..")))
+          ($profile-options (ai-math:prover-profile-options $profile))
+          ($options (case $profile-options
+                      (((AiProver:InvalidProfile $unknown) $profile-options)
+                       ($profile-values (if (== $trace-directory "-") $profile-values
+                                  (cons-atom (trace-directory $trace-directory) $profile-values))))))
+          ($context (case $options
+                      (((AiProver:InvalidProfile $unknown) (AiProver:Fault "" invalid-profile $unknown))
+                       ($validated-options (ai-math:prover-with (ai-math:load-library $corpus)
+                                  $corpus $root $lean $vampire $validated-options)))))
+          ($targets (ai-math:run-targets-shard $context $stride $shard))
+          ($result (case $targets
+                    (((AiRun:Request $why $details) $targets)
+                     ($names
+                       (let $owner (ai-math:run-open $context $corpus $log
+                                      (AiRun:Toolchain $lean $vampire
+                                        (system:getenv-or-default "CETTA_BUILD_ID" "unspecified")) $mode)
+                         (ai-math:run $owner $names (AiITP:Budget 300000 200000 8000))))))))
+     (let $printed (println! $result)
+       (system:exit (case $result (((AiRun:Summary $key $count $outcomes $issues) 0) ($other 2)))))))

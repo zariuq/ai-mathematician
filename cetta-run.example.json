@@ -1,0 +1,10 @@
+{
+  "corpus": "data/corpus.sexpr",
+  "output": "results/cetta-v4",
+  "workers": 2,
+  "itp_runtime": "native",
+  "limit": 4,
+  "profile": "PythonV4",
+  "mode": "Fresh",
+  "trace": true
+}

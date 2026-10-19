@@ -1,0 +1,6 @@
+name = "duperenv"
+
+[[require]]
+name = "Duper"
+git = "https://github.com/leanprover-community/duper.git"
+rev = "b603c493b09f07b4f7d1a873e5b9b1f60577692c"
