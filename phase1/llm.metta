@@ -3,8 +3,11 @@
 
 (= (ai-math:llm-code-parser)
    (let* (($fences (re:prepare (re:pattern "(?s)```(?:lean4?|)\\s*\\n(.*?)```")))
-          ($header (re:prepare (re:pattern "(?s)^\\s*(?:theorem|lemma|example)\\b.*?:=\\s*by\\s*\\n(.*)$"))))
-     (AiLLM:CodeParser $fences $header)))
+          ($header (re:prepare (re:pattern "(?s)^\\s*(?:theorem|lemma|example)\\b.*?:=\\s*by\\s*\\n(.*)$")))
+          ($lines (re:prepare (re:pattern "\\r\\n|[\\n\\r\\x{b}\\x{c}\\x{1c}-\\x{1e}\\x{85}\\x{2028}\\x{2029}]")))
+          ($bridge (re:prepare (re:pattern "^simp only \\[\\s*(?:b_\\w+\\s*,\\s*)*b_\\w+\\s*\\] at \\*\\s*$")))
+          ($rstrip (re:prepare (re:pattern "[\\s\\x{1c}-\\x{1f}]+$"))))
+     (AiLLM:CodeParser $fences $header $lines $bridge $rstrip)))
 (= (ai-math:llm-last-block $matches $reply $last)
    (case $matches
      ((LNil $last)
@@ -27,7 +30,7 @@
 (= (ai-math:llm-strip-fence-label $text)
    (let* (($lines (str:split "\n" $text)) ($head (str:trim (car-atom $lines))))
      (if (ai-math:contains ("" "lean" "lean4") $head) (str:join "\n" (cdr-atom $lines)) $text)))
-(= (ai-math:llm-extract (AiLLM:CodeParser $fences $header) $reply)
+(= (ai-math:llm-extract (AiLLM:CodeParser $fences $header $lines $bridge $rstrip) $reply)
    (case (re:find-all $fences $reply)
      (((re:matches $matches)
        (let* (($block (ai-math:llm-last-block $matches $reply AiLLM:NoBlock))
@@ -41,6 +44,97 @@
               ($body (if (== (get-type $part) String) (ai-math:llm-unindent $part) $text)))
          (if (str:starts-with $body "by\n") (str:byte-slice $body 3 (str:byte-length $body)) $body)))
       ($other (AiLLM:Fault code-extraction)))))
+; Formatting produces proposals only. Every normalized or repaired script
+; returns through the same independent proof checker as the original.
+(= (ai-math:llm-piece-list LNil) ())
+(= (ai-math:llm-piece-list (LCons $head $rest))
+   (cons-atom $head (ai-math:llm-piece-list $rest)))
+(= (ai-math:llm-lines (AiLLM:CodeParser $f $h $lines $b $r) $text)
+   (if (== $text "") ()
+     (case (re:split $lines $text)
+       (((re:pieces $pieces)
+         (let $reversed (list:reverse (ai-math:llm-piece-list $pieces))
+           (list:reverse (if (== (car-atom $reversed) "") (cdr-atom $reversed) $reversed))))
+        ($other (AiLLM:Fault line-split))))))
+(= (ai-math:llm-dedented $lines)
+   (if (== $lines ()) AiLLM:NoRepair
+     (let* (($head (car-atom $lines)) ($body (cdr-atom $lines))
+            ($nonempty (filter-atom $body $line (not (== (str:trim $line) "")))))
+       (if (or (== $nonempty ())
+               (or (str:starts-with $head " ") (str:starts-with $head "\t"))) AiLLM:NoRepair
+         (if (foldl-atom ("by" ":=" "=>" "·") false $found $suffix
+               (or $found (str:ends-with (str:trim $head) $suffix))) AiLLM:NoRepair
+           (let $pad (foldl-atom $nonempty (str:byte-length (car-atom $nonempty)) $minimum $line
+                        (let $count (ai-math:llm-leading $line 0) (if (< $count $minimum) $count $minimum)))
+             (if (== $pad 0) AiLLM:NoRepair
+               (AiLLM:Lines (cons-atom $head (map-atom $body $line
+                 (if (== (str:trim $line) "") $line
+                   (str:byte-slice $line $pad (str:byte-length $line)))))))))))))
+(= (ai-math:llm-dedent-or $lines)
+   (case (ai-math:llm-dedented $lines)
+     (((AiLLM:Lines $changed) $changed) ($other $lines))))
+(= (ai-math:llm-normalize (AiLLM:CodeParser $f $h $line-parser $bridge $r) $script)
+   (str:join "\n" (map-atom
+     (ai-math:llm-dedent-or (ai-math:llm-lines (AiLLM:CodeParser $f $h $line-parser $bridge $r) $script)) $line
+     (if (re:is-match $bridge $line) (str:concat "try " $line) $line))))
+(= (ai-math:llm-rstrip (AiLLM:CodeParser $f $h $l $b $rstrip) $script)
+   (let $text (re:replace-literal $rstrip $script "")
+     (if (== (get-type $text) String) $text (AiLLM:Fault whitespace-repair))))
+(= (ai-math:llm-insert-bridge $lines $wanted $index)
+   (if (== $lines ()) ()
+     (if (== $wanted $index)
+       (cons-atom (str:join "" ("simp only [" (ai-math:prover-bridge) "] at *")) $lines)
+       (cons-atom (car-atom $lines)
+         (ai-math:llm-insert-bridge (cdr-atom $lines) $wanted (+ $index 1))))))
+(= (ai-math:llm-bridged $lines)
+   (let (AiLLM:Last $count $last)
+     (foldl-atom $lines (AiLLM:Last 0 -1) $state $line
+       (let (AiLLM:Last $i $last) $state
+         (AiLLM:Last (+ $i 1)
+           (if (and (not (== (str:trim $line) ""))
+                    (not (or (str:starts-with $line " ")
+                         (or (str:starts-with $line "\t") (str:starts-with $line "--"))))) $i $last))))
+     (if (> $last 0) (AiLLM:Lines (ai-math:llm-insert-bridge $lines $last 0)) AiLLM:NoRepair)))
+(= (ai-math:llm-repair-bases $lines)
+   (let* (($bridge (case (ai-math:llm-bridged $lines)
+                    (((AiLLM:Lines $ls) (("-bridge" $ls))) ($other ()))))
+          ($dedent (case (ai-math:llm-dedented $lines)
+                    (((AiLLM:Lines $ls)
+                      (union-atom (("-dedent" $ls))
+                        (case (ai-math:llm-bridged $ls)
+                          (((AiLLM:Lines $both) (("-dedent-bridge" $both))) ($other ())))))
+                     ($other ())))))
+     (union-atom (("" $lines)) (union-atom $bridge $dedent))))
+(= (ai-math:llm-repair-variants $parser $script $why $premises $label)
+   (let $lines (ai-math:llm-lines $parser (ai-math:llm-rstrip $parser $script))
+     (if (== $lines ()) ()
+       (let* (($bases (ai-math:llm-repair-bases $lines))
+              ($sbe (str:join "" ("solve_by_elim (maxDepth := 8)"
+                      (if (== $premises ()) "" (str:join "" (" [" (str:join ", " (ai-math:lean-names $premises)) "]"))))))
+              ($closer ((str:join "" ("all_goals (try simp only [" (ai-math:prover-bridge) "] at *)"))
+                         (str:join "" ("all_goals (first | grind | " $sbe " | (intros; grind) | assumption)"))))
+              ($repairs (map-atom (cdr-atom $bases) $base
+                          (let ($tag $ls) $base
+                            (AiITP:Candidate (str:concat $label $tag) (str:join "\n" $ls)))))
+              ($finish (if (or (> (size-atom (str:split "unsolved goals" $why)) 1)
+                               (not (== (ai-math:llm-dedented $lines) AiLLM:NoRepair)))
+                         (map-atom $bases $base (let ($tag $ls) $base
+                           (AiITP:Candidate (str:join "" ($label $tag "-finish"))
+                             (str:join "\n" (union-atom $ls $closer))))) ())))
+         (union-atom $repairs $finish)))))
+(= (ai-math:llm-error-text $result)
+   (case $result
+     (((AiITP:Rejected $n $r $reply) (ai-math:llm-diagnostics $reply $result))
+      ((AiITP:Unfinished $n $r $reply) (ai-math:llm-diagnostics $reply $result))
+      ($other (repr $result)))))
+(= (ai-math:llm-diagnostics $reply $fallback)
+   (case (json:get $reply "messages")
+     (((JsonArray $messages)
+       (str:join "\n" (map-atom $messages $entry
+         (if (== (get-type $entry) String) $entry ""))))
+      ($other (let $message (json:get $reply "message")
+        (if (== (get-type $message) String) $message (repr $fallback)))))))
+
 (= (ai-math:llm-system)
    "Write a Lean 4 tactic script, core Lean only, without Mathlib. Work in namespace Megalodon. The goal type is fixed. Use only the listed earlier facts and definitions; never use the theorem being proved. Megalodon.set is an opaque type, not an inductive set datatype. Membership facts need the listed introduction/elimination lemmas, not cases on set membership. Encoded logic can be rewritten by the proved bridge lemmas b_True, b_False, b_not, b_and, b_or, b_iff, b_eq, b_neq, b_ex, for example: try simp only [b_True, b_False, b_not, b_and, b_or, b_iff, b_eq, b_neq, b_ex] at *. For induction apply a listed earlier induction principle with an explicit motive. Introduce your own names for bound variables. Return one lean code block containing only the tactic script, with no theorem header, no admissions, no new axioms and no commands outside the proof.")
 (= (ai-math:llm-prompt (AiITP:PromptContext $target $statement $definitions $facts))
@@ -49,14 +143,69 @@
      (str:join "\n" (map-atom $definitions $row (index-atom $row 2)))
      "Available facts (types only):"
      (str:join "\n" (map-atom $facts $row (index-atom $row 2))))))
+(= (ai-math:llm-clip $text $limit)
+   (if (or (== $limit 0) (<= (str:codepoint-count $text) $limit)) $text
+     (str:from-codepoints (list:take $limit (str:codepoints $text)))))
+(= (ai-math:llm-context-rows $rows $limit)
+   (let (AiLLM:ContextSize $size $out $full)
+     (foldl-atom $rows (AiLLM:ContextSize 0 () false) $state $row
+       (let (AiLLM:ContextSize $seen $kept $stopped) $state
+         (if $stopped $state
+           (let $next (+ $seen (str:codepoint-count (index-atom $row 2)))
+             (if (and (> $limit 0) (> $next $limit)) (AiLLM:ContextSize $seen $kept true)
+               (AiLLM:ContextSize $next (cons-atom $row $kept) false))))))
+     (list:reverse $out)))
+(= (ai-math:llm-prompt-with (AiITP:PromptContext $name $statement $definitions $facts) $options)
+   (ai-math:llm-prompt (AiITP:PromptContext $name $statement
+     (ai-math:llm-context-rows $definitions (ai-math:option $options definition-chars 12000))
+     (ai-math:llm-context-rows $facts (ai-math:option $options context-chars 80000)))))
+(= (ai-math:llm-goal-state $itp $target $budget)
+   (let* (($script (str:join "" ("intros\ntry simp only [" (ai-math:prover-bridge) "] at *\ndone")))
+          ($checked (ai-math:itp-check-with $itp $target $script $budget))
+          ($why (ai-math:llm-error-text $checked))
+          ($parts (str:split "unsolved goals\n" $why)))
+     (if (> (size-atom $parts) 1) (ai-math:llm-clip (str:trim (index-atom $parts 1)) 3000) "")))
 (= (ai-math:llm-message $role $content)
-   (JsonObject ((JsonPair "role" (JsonString $role)) (JsonPair "content" (JsonString $content)))))
+   (JsonObject ((JsonPair "role" $role) (JsonPair "content" $content))))
+(= (ai-math:llm-advice $context $client $target)
+   (let $options (ai-math:llm-config $client Options)
+     (if (ai-math:option $options proof-advice false)
+       (ai-math:proof-advice $context $target (ai-math:option $options proof-chars 12000))
+       AiATP:ProofDisabled)))
+(= (ai-math:llm-advised-prompt $prompt $advice)
+   (case $advice
+     (((AiATP:ProofAdvice $name $slice $text $used $defs $evidence)
+       (str:join "\n\n" ($prompt $text)))
+      ($other $prompt))))
+(= (ai-math:llm-advice-record $advice)
+   (case $advice
+     ((AiATP:ProofDisabled ())
+      ((AiATP:ProofAdvice $name $slice $text $used $defs $evidence)
+       ((AiLLM:ProofContext $name $slice $used $defs (str:sha256 $text))))
+      ($other ((AiLLM:ProofContextUnavailable $other))))))
 (= (ai-math:llm-trims $script)
    (let $lines (str:split "\n" $script)
      (map-atom (filter-atom (1 2 3) $count (< $count (size-atom $lines))) $count
        (AiITP:Candidate (str:concat "trim" (str:number->string $count))
          (str:join "\n" (list:take (- (size-atom $lines) $count) $lines))))))
 (= (ai-math:llm-check-script $itp $target $script $budget)
+   (ai-math:llm-check-script $itp $target $script $budget (ai-math:llm-code-parser) ()))
+(= (ai-math:llm-check-script $itp $target $script $budget $parser $premises)
+   (let (AiLLM:Checked $candidate $checked) (ai-math:llm-check-trims $itp $target $script $budget)
+     (case $checked
+       (((AiITP:Rejected $n $reason $details)
+         (let $repairs (ai-math:llm-repair-variants $parser $candidate
+                         (ai-math:llm-error-text $checked) $premises "repair")
+           (if (== $repairs ()) (AiLLM:Checked $candidate $checked)
+             (case (ai-math:itp-batch-with $itp $target $repairs $budget)
+               (((AiITP:Batch $name $answers)
+                 (case (ai-math:prover-winner (ai-math:prover-attempts llm-repair $repairs $answers 0))
+                   (((AiProver:Proved $s $i $label $tactic $used $axioms)
+                     (AiLLM:Checked $tactic (AiITP:Accepted $target $used $axioms)))
+                    ($other (AiLLM:Checked $candidate $checked)))))
+                ($other (AiLLM:Checked $candidate $checked)))))))
+        ($other (AiLLM:Checked $candidate $checked))))))
+(= (ai-math:llm-check-trims $itp $target $script $budget)
    (let $checked (ai-math:itp-check-with $itp $target $script $budget)
      (if (== (get-type (str:find (repr $checked) "No goals to be solved")) Number)
        (let $candidates (ai-math:llm-trims $script)
@@ -78,21 +227,24 @@
       ((AiITP:Fault $n $why $details) $reason)
       ($other (AiITP:Fault $target llm $other)))))
 (= (ai-math:llm-finished $target $transcript)
-   (let $attempts (map-atom $transcript $entry
+   (let $attempts (foldl-atom $transcript () $out $entry
      (case $entry
        (((AiLLM:Round $round $label $script $result $receipt)
-         (AiProver:Attempt llm $round $label $script $result))
+         (union-atom $out ((AiProver:Attempt llm $round $label $script $result))))
         ((AiLLM:RoundFault $round $reason)
-         (AiProver:StageFault llm (ai-math:llm-failure $target $reason))))))
+         (union-atom $out ((AiProver:StageFault llm (ai-math:llm-failure $target $reason)))))
+        ((AiLLM:ProofContext $name $slice $used $defs $digest) $out)
+        ((AiLLM:ProofContextUnavailable $reason) $out)
+        ($other (union-atom $out ((AiProver:StageFault llm (AiITP:Fault $target transcript $other))))))))
      (AiLLM:Result $target $transcript (ai-math:prover-outcome $attempts (llm)))))
-(= (ai-math:proposal-loop $itp $client $target $parser $prefix $messages $round $remaining $budget $transcript)
+(= (ai-math:proposal-loop $itp $client $target $parser $prefix $messages $round $remaining $budget $transcript $premises)
    (if (== $remaining 0) (ai-math:llm-finished $target $transcript)
      (case (ai-math:llm-chat $client $messages 3)
        (((AiLLM:Reply $reply $receipt)
-         (let $sketch (ai-math:llm-extract $parser $reply)
+         (let $sketch (ai-math:llm-normalize $parser (ai-math:llm-extract $parser $reply))
            (if (== (get-type $sketch) String)
              (let* (($script (str:concat $prefix $sketch))
-                    ((AiLLM:Checked $candidate $result) (ai-math:llm-check-script $itp $target $script $budget))
+                    ((AiLLM:Checked $candidate $result) (ai-math:llm-check-script $itp $target $script $budget $parser $premises))
                     ($label (str:concat "llm-r" (str:number->string $round)))
                     ($entry (AiLLM:Round $round $label $candidate $result $receipt))
                     ($next (union-atom $transcript ($entry)))
@@ -101,8 +253,10 @@
                  (ai-math:proposal-loop $itp $client $target $parser $prefix
                    (union-atom $messages
                      ((ai-math:llm-message "assistant" (str:join "" ("```lean\n" $sketch "\n```")))
-                      (ai-math:llm-message "user" (str:concat "Lean did not accept this proposal. Fix it; return only a lean tactic block.\n" (repr $result)))))
-                   (+ $round 1) (- $remaining 1) $budget $next)
+                      (ai-math:llm-message "user" (str:concat "Lean did not accept this proposal. Fix it; return only a lean tactic block.\n"
+                        (ai-math:llm-clip (ai-math:llm-error-text $result)
+                          (ai-math:option (ai-math:llm-config $client Options) feedback-chars 2500))))))
+                   (+ $round 1) (- $remaining 1) $budget $next $premises)
                  (AiLLM:Result $target $next $winner)))
              (ai-math:llm-finished $target (union-atom $transcript ((AiLLM:RoundFault $round $sketch)))))))
         ($other (ai-math:llm-finished $target (union-atom $transcript ((AiLLM:RoundFault $round $other)))))))))
@@ -113,9 +267,17 @@
          (case (ai-math:itp-prompt-context $itp $target $premises $definitions $budget)
            (((AiITP:PromptContext $name $statement $defs $facts)
              (let* (($parser (ai-math:llm-code-parser))
+                    ($policy (ai-math:llm-config $client Options))
+                    ($state (if (ai-math:option $policy goal-state true)
+                              (ai-math:llm-goal-state $itp $target $budget) ""))
+                    ($prompt (ai-math:llm-prompt-with (AiITP:PromptContext $name $statement $defs $facts) $policy))
+                    ($advice (ai-math:llm-advice $context $client $target))
+                    ($advised (ai-math:llm-advised-prompt $prompt $advice))
                     ($messages ((ai-math:llm-message "system" (ai-math:llm-system))
-                                (ai-math:llm-message "user" (ai-math:llm-prompt (AiITP:PromptContext $name $statement $defs $facts))))))
-               (ai-math:proposal-loop $itp $client $target $parser "" $messages 1 $rounds $budget ())))
+                                (ai-math:llm-message "user" (if (== $state "") $advised
+                                  (str:join "\n" ($advised "Lean's goal state after introductions and bridging:" $state)))))))
+               (ai-math:proposal-loop $itp $client $target $parser "" $messages 1 $rounds $budget
+                 (ai-math:llm-advice-record $advice) $premises)))
             ($other (AiLLM:Fault prompt-context))))
          (AiLLM:Fault proof-policy)))
       ($other $other))))
@@ -135,7 +297,10 @@
        (if (and (ai-math:itp-natural $repairs) (ai-math:itp-budget-valid $budget))
          (case (ai-math:itp-prompt-context $itp $target $premises $definitions $budget)
            (((AiITP:PromptContext $name $statement $defs $facts)
-             (let $prompt (ai-math:llm-prompt (AiITP:PromptContext $name $statement $defs $facts))
+             (let* (($advice (ai-math:llm-advice $context $client $target))
+                    ($prompt (ai-math:llm-advised-prompt
+                      (ai-math:llm-prompt-with (AiITP:PromptContext $name $statement $defs $facts)
+                        (ai-math:llm-config $client Options)) $advice)))
                (case (ai-math:llm-chat $client
                        ((ai-math:llm-message "system" (ai-math:dsp-system))
                         (ai-math:llm-message "user" $prompt)) 3)
@@ -145,7 +310,8 @@
                           ($messages ((ai-math:llm-message "system" (ai-math:llm-system))
                             (ai-math:llm-message "user" (str:join "\n" ($prompt "Informal draft:" $draft
                               (ai-math:dsp-instruction $definitions)))))))
-                     (case (ai-math:proposal-loop $itp $client $target $parser $prefix $messages 1 (+ $repairs 1) $budget ())
+                     (case (ai-math:proposal-loop $itp $client $target $parser $prefix $messages 1 (+ $repairs 1) $budget
+                             (ai-math:llm-advice-record $advice) $premises)
                        (((AiLLM:Result $n $transcript $outcome)
                          (AiDSP:Result $target (AiDSP:Draft $draft $receipt) $transcript $outcome))
                         ($other $other)))))

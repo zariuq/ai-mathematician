@@ -56,26 +56,26 @@ def main():
     assert checked.returncode == 0 and checked.stdout.count("✅") == unit_count, checked.stdout + checked.stderr
     assert "❌" not in checked.stdout + checked.stderr, checked.stdout + checked.stderr
     source = prelude() + r'''
-!(let* (($good (json-parse "{\"corpus\":\"c.sexpr\",\"output\":\"run\"}"))
+!(let* (($good (json:parse "{\"corpus\":\"c.sexpr\",\"output\":\"run\"}"))
         ($decls ((Decl 2 THM "a" "h" () NoBody () () ())
                  (Decl 5 AXIOM "p" "h" () NoBody () () ())
                  (Decl 7 THM "b" "h" () NoBody () () ())
                  (Decl 9 THM "c" "h" () NoBody () () ())
                  (Decl 12 THM "d" "h" () NoBody () () ()))))
    ((ai-math:workers-config-valid $good)
-    (ai-math:workers-config-valid (json-parse "{\"corpus\":\"c\",\"output\":\"r\",\"workers\":0}"))
-    (ai-math:workers-config-valid (json-parse "{\"corpus\":\"c\",\"output\":\"r\",\"workers\":1.5}"))
-    (ai-math:workers-config-valid (json-parse "{\"corpus\":\"c\",\"output\":\"r\",\"typo\":true}"))
-    (ai-math:workers-config-valid (json-parse "{\"corpus\":\"c\",\"output\":\"r\",\"trace\":1}"))
-    (ai-math:workers-config-valid (json-parse "{\"corpus\":\"c\",\"output\":\"r\",\"goals\":[4]}"))
+    (ai-math:workers-config-valid (json:parse "{\"corpus\":\"c\",\"output\":\"r\",\"workers\":0}"))
+    (ai-math:workers-config-valid (json:parse "{\"corpus\":\"c\",\"output\":\"r\",\"workers\":1.5}"))
+    (ai-math:workers-config-valid (json:parse "{\"corpus\":\"c\",\"output\":\"r\",\"typo\":true}"))
+    (ai-math:workers-config-valid (json:parse "{\"corpus\":\"c\",\"output\":\"r\",\"trace\":1}"))
+    (ai-math:workers-config-valid (json:parse "{\"corpus\":\"c\",\"output\":\"r\",\"goals\":[4]}"))
     (ai-math:workers-targets $decls $good)
-    (ai-math:workers-targets $decls (json-parse "{\"stride\":2,\"skip\":1,\"limit\":1}"))
-    (ai-math:workers-targets $decls (json-parse "{\"goals\":[\"d\",\"a\"]}"))
-    (ai-math:workers-targets $decls (json-parse "{\"goals\":[\"a\",\"a\"]}"))
-    (ai-math:workers-targets $decls (json-parse "{\"goals\":[\"unknown\"]}"))
+    (ai-math:workers-targets $decls (json:parse "{\"stride\":2,\"skip\":1,\"limit\":1}"))
+    (ai-math:workers-targets $decls (json:parse "{\"goals\":[\"d\",\"a\"]}"))
+    (ai-math:workers-targets $decls (json:parse "{\"goals\":[\"a\",\"a\"]}"))
+    (ai-math:workers-targets $decls (json:parse "{\"goals\":[\"unknown\"]}"))
     (ai-math:workers-partition ((2 "a") (7 "b") (9 "c") (12 "d")) 2 0)
     (ai-math:workers-partition ((2 "a") (7 "b") (9 "c") (12 "d")) 2 1)
-    (ai-math:workers-options (json-parse "{\"slices\":[],\"lean_stages\":[\"base\"],\"induction\":false,\"use_duper\":false}") "traces")
+    (ai-math:workers-options (json:parse "{\"slices\":[],\"lean_stages\":[\"base\"],\"induction\":false,\"use_duper\":false}") "traces")
     (ai-math:workers-dirname "/a path/config.json")
     (ai-math:workers-dirname "/config.json")
     (ai-math:workers-process-text (proc:result (proc:exited 0) proc:normal "ok" ""
@@ -188,7 +188,7 @@ def main():
         exprs = []
         for observations, targets, _ in controls:
             json_rows = [identity] + observations
-            metta_rows = "(" + " ".join("(json-parse " + quote(json.dumps(r)) + ")" for r in json_rows) + ")"
+            metta_rows = "(" + " ".join("(json:parse " + quote(json.dumps(r)) + ")" for r in json_rows) + ")"
             metta_targets = "(" + " ".join(f"({i} {quote(name)})" for i, name in targets) + ")"
             exprs.append(f"(ai-math:workers-snapshot-valid {metta_rows} {identity_atom} {metta_targets})")
         path = directory / "join-controls.metta"

@@ -37,14 +37,29 @@
    (sort-atom (unique-atom
      (filter-atom (str:split "_" $name) $part (not (== $part ""))))))
 
-(= (ai-math:index-document $space $decl)
-   (let* (($index (ai-math:declaration-index $decl))
-          ($symbols (map-atom (ai-math:declaration-symbols $decl) $key
-                      (add-atom $space (AiDocument Symbol $key $index))))
-          ($tokens (map-atom (ai-math:name-tokens (ai-math:declaration-name $decl)) $key
-                     (add-atom $space (AiDocument Token $key $index)))))
+(= (ai-math:index-document $space $ordinal $decl)
+   (let* (($name (ai-math:declaration-name $decl))
+          ($kind (ai-math:declaration-kind $decl))
+          ($statement-symbols
+            (sort-atom (unique-atom (ai-math:declaration-symbols $decl))))
+          ($overlap-symbols
+            (sort-atom (unique-atom
+              (cons-atom $name $statement-symbols))))
+          ($symbols (map-atom $statement-symbols $key
+                      (let* (($document
+                               (add-atom $space
+                                 (AiDocument Symbol $key $ordinal)))
+                              ($posting
+                               (add-atom $space
+                                 (AiStatementSymbol $key $ordinal))))
+                        ())))
+          ($overlap (map-atom $overlap-symbols $key
+                      (add-atom $space (AiOverlapSymbol $key $ordinal))))
+          ($name-order (add-atom $space (AiNameOrder $name $ordinal)))
+          ($tokens (map-atom (ai-math:name-tokens $name) $key
+                     (add-atom $space (AiDocument Token $key $ordinal)))))
      (map-atom (ai-math:declaration-features $decl) $key
-       (add-atom $space (AiDocument Feature $key $index)))))
+       (add-atom $space (AiDocument Feature $key $ordinal)))))
 
 (= (ai-math:search $decls)
    (case $decls
@@ -53,17 +68,25 @@
        (let* (($size (size-atom $items))
               ($facts (map-atom $items $decl (ai-math:search-fact $decl)))
               ($documents (new-space))
-              ($indexed (map-atom $facts $decl (ai-math:index-document $documents $decl)))
+              ($indexed (foldl-atom $facts 0 $ordinal $decl
+                          (let $stored
+                            (ai-math:index-document $documents $ordinal $decl)
+                            (+ $ordinal 1))))
               ($keys (unique-atom
                        (collapse (match $documents (AiDocument $kind $key $index)
                                                    (AiFeature $kind $key)))))
-              ($weights (new-space))
+              ($weights $documents)
               ($prepared (map-atom $keys $feature
                            (ai-math:prepare-weight $weights $documents
                              $size $feature)))
+              ($totals (foldl-atom $facts 0 $ordinal $fact
+                         (let $stored
+                           (ai-math:prepare-fact-totals $weights $ordinal $fact)
+                           (+ $ordinal 1))))
               ($catalog (new-space))
               ($stored (foldl-atom $facts 0 $ordinal $fact
-                         (let $entry (add-atom $catalog (AiSearchItem $ordinal $fact))
+                         (let $entry
+                           (add-atom $catalog (AiSearchItem $ordinal $fact))
                            (+ $ordinal 1))))
               ($training (ai-math:training $facts)))
          (AiSearch $size $catalog $weights $training))))))
@@ -78,6 +101,24 @@
      (add-atom $weights (AiEntry (Weight $kind $key) $value))))
 (= (ai-math:weight (AiSearch $count $facts $weights $training) $kind $key $default)
    (ai-math:get $weights (Weight $kind $key) $default))
+(= (ai-math:weight-in $weights $kind $key $default)
+   (ai-math:get $weights (Weight $kind $key) $default))
+(= (ai-math:sum-weights-in $weights $kind $items $default)
+   (foldl-atom (sort-atom (unique-atom $items)) 0.0 $sum $key
+     (+ $sum (ai-math:weight-in $weights $kind $key $default))))
+(= (ai-math:prepare-fact-totals $weights $ordinal $fact)
+   (let* (($statement-symbols
+            (sort-atom (unique-atom (ai-math:declaration-symbols $fact))))
+          ($overlap-symbols
+            (sort-atom (unique-atom
+              (cons-atom (ai-math:declaration-name $fact) $statement-symbols))))
+          ($statement-total
+            (ai-math:sum-weights-in $weights Symbol $statement-symbols 1.0))
+          ($overlap-total
+            (ai-math:sum-weights-in $weights Symbol $overlap-symbols 1.0))
+          ($first (add-atom $weights
+                    (AiEntry (StatementTotal $ordinal) $statement-total))))
+     (add-atom $weights (AiEntry (OverlapTotal $ordinal) $overlap-total))))
 (= (ai-math:sum-weights $search $kind $items $default)
    (foldl-atom (sort-atom (unique-atom $items)) 0.0 $sum $key
      (+ $sum (ai-math:weight $search $kind $key $default))))
@@ -86,15 +127,19 @@
 ; retain floating-addition and tie order; they do not constrain result bags.
 (= (ai-math:group-sums $entries)
    (let* (($space (new-space))
-          ($indexed (foldl-atom $entries 0 $index $entry
-                      (let ($key $amount) $entry
-                        (let $stored (add-atom $space (AiContribution $key $index $amount))
-                          (+ $index 1)))))
+          ($indexed (ai-math:store-contributions $space $entries 0))
           ($keys (unique-atom (map-atom $entries $entry (car-atom $entry)))))
      (map-atom $keys $key
-       ($key (ai-math:sum-indexed
-               (collapse (match $space (AiContribution $key $index $amount)
-                                       ($index $amount))))))))
+       ($key (ai-math:contribution-score $space $key)))))
+(= (ai-math:store-contributions $space $entries $ordinal)
+   (foldl-atom $entries $ordinal $index $entry
+     (let ($key $amount) $entry
+       (let $stored (add-atom $space (AiContribution $key $index $amount))
+         (+ $index 1)))))
+(= (ai-math:contribution-score $space $key)
+   (ai-math:sum-indexed
+     (collapse (match $space (AiContribution $key $index $amount)
+                             ($index $amount)))))
 (= (ai-math:sum-indexed $entries)
    (foldl-atom (sort-atom $entries) 0 $sum $entry (+ $sum (index-atom $entry 1))))
 (= (ai-math:sort-scores $entries)
@@ -104,6 +149,21 @@
          (let $key (AiSortKey (- 0.0 (index-atom $entry 1)) $index)
            (AiSort (+ $index 1) (cons-atom ($key $entry) $rows)))))
      (unkey-atom (sort-atom $rows))))
+(= (ai-math:name-order-get $order $name)
+   (let $ordinals
+     (sort-atom
+       (collapse (match $order (AiNameOrder $name $ordinal) $ordinal)))
+     (if (== $ordinals ()) NoName (car-atom $ordinals))))
+(= (ai-math:sort-scores-with-order $order $cutoff $scores)
+   (unkey-atom (sort-atom
+     (map-atom
+       (filter-atom $scores $entry
+         (let $ordinal (ai-math:name-order-get $order (car-atom $entry))
+           (and (not (== $ordinal NoName)) (< $ordinal $cutoff))))
+       $entry
+       (let* ((($name $score) $entry)
+              ($ordinal (ai-math:name-order-get $order $name)))
+         ((AiSortKey (- 0.0 $score) $ordinal) $entry))))))
 (= (ai-math:entry-names $entries) (map-atom $entries $entry (car-atom $entry)))
 (= (ai-math:maximum-score $entries)
    (foldl-atom $entries 0.0 $maximum $entry
@@ -128,6 +188,71 @@
                      (intersection-atom $goal-symbols $symbols) 1.0)))
      (if (== $shared 0.0) 0.0
        (/ $shared (ai-math:sum-weights $search Symbol (union-atom $goal-symbols $symbols) 1.0)))))
+(= (ai-math:search-fact-at (AiSearch $count $facts $weights $training) $ordinal)
+   (case (collapse (match $facts (AiSearchItem $ordinal $fact) $fact))
+     ((($fact) $fact))))
+(= (ai-math:overlap-shared (AiSearch $count $facts $weights $training)
+      $goal-symbols $cutoff)
+   (let $search (AiSearch $count $facts $weights $training)
+     (ai-math:group-sums
+       (foldl-atom (sort-atom (unique-atom $goal-symbols)) () $out $symbol
+         (union-atom $out
+           (map-atom
+             (filter-atom
+               (collapse (match $weights
+                 (AiOverlapSymbol $symbol $ordinal) $ordinal))
+               $ordinal (< $ordinal $cutoff))
+             $ordinal
+             ($ordinal (ai-math:weight $search Symbol $symbol 1.0))))))))
+(= (ai-math:statement-shared (AiSearch $count $facts $weights $training)
+      $goal-symbols $cutoff)
+   (let $search (AiSearch $count $facts $weights $training)
+     (ai-math:group-sums
+       (foldl-atom (sort-atom (unique-atom $goal-symbols)) () $out $symbol
+         (union-atom $out
+           (map-atom
+             (filter-atom
+               (collapse (match $weights
+                 (AiStatementSymbol $symbol $ordinal) $ordinal))
+               $ordinal (< $ordinal $cutoff))
+             $ordinal
+             ($ordinal (ai-math:weight $search Symbol $symbol 1.0))))))))
+(= (ai-math:overlap-rows (AiSearch $count $facts $weights $training)
+      $goal-symbols $cutoff)
+   (let $search (AiSearch $count $facts $weights $training)
+     (map-atom (ai-math:overlap-shared $search $goal-symbols $cutoff) $entry
+       (let ($ordinal $shared) $entry
+         (let* (($fact (ai-math:search-fact-at $search $ordinal))
+                ($total (ai-math:get $weights (OverlapTotal $ordinal) 0.0)))
+           (AiOverlapScore $ordinal $fact
+             (if (== $total 0.0) 0.0 (/ $shared $total))))))))
+(= (ai-math:overlap-contributions $search $goal-symbols $cutoff)
+   (foldl-atom (ai-math:overlap-rows $search $goal-symbols $cutoff) () $out $row
+     (let (AiOverlapScore $ordinal $fact $score) $row
+       (let* (($name (ai-math:declaration-name $fact))
+              ($shared (if (> $score 0.0) (($name $score)) ()))
+              ($definition
+                (if (and (== (ai-math:declaration-kind $fact) DEF)
+                         (ai-math:contains $goal-symbols $name))
+                  (($name 2.0)) ())))
+         (union-atom $out (union-atom $definition $shared))))))
+(= (ai-math:neighbors-prefix (AiSearch $count $facts $weights $training)
+      $goal-symbols $cutoff)
+   (let* (($search (AiSearch $count $facts $weights $training))
+          ($goal-total (ai-math:sum-weights $search Symbol $goal-symbols 1.0)))
+     (ai-math:sort-scores
+       (filter-atom
+         (map-atom (ai-math:statement-shared $search $goal-symbols $cutoff) $entry
+           (let ($ordinal $shared) $entry
+             (let* (($fact (ai-math:search-fact-at $search $ordinal))
+                    ($fact-total
+                      (ai-math:get $weights (StatementTotal $ordinal) 0.0))
+                    ($union (- (+ $goal-total $fact-total) $shared)))
+               ($fact
+                 (if (and (== (ai-math:declaration-kind $fact) THM)
+                          (> $union 0.0))
+                   (/ $shared $union) 0.0)))))
+         $entry (> (index-atom $entry 1) 0.0)))))
 (= (ai-math:neighbors $search $goal-symbols $earlier)
    (ai-math:sort-scores
      (filter-atom
@@ -135,8 +260,14 @@
          $decl ($decl (ai-math:similarity $search $goal-symbols $decl)))
        $entry (> (index-atom $entry 1) 0.0))))
 (= (ai-math:knn $search $goal-symbols $earlier $count)
+   (ai-math:knn-from-neighbors
+     (ai-math:neighbors $search $goal-symbols $earlier) $count))
+(= (ai-math:knn-prefix $search $goal-symbols $cutoff $count)
+   (ai-math:knn-from-neighbors
+     (ai-math:neighbors-prefix $search $goal-symbols $cutoff) $count))
+(= (ai-math:knn-from-neighbors $neighbors $count)
    (ai-math:group-sums
-     (foldl-atom (list:take $count (ai-math:neighbors $search $goal-symbols $earlier))
+     (foldl-atom (list:take $count $neighbors)
        () $out $entry
        (let ($decl $similarity) $entry
          (union-atom $out
@@ -167,7 +298,11 @@
    (let* (($ledger (ai-math:training-ledger $training $name $source $ordinal))
           ($use (add-atom $ledger (AiTrainingUse $ordinal $source $kind)))
           ($indexed (map-atom $features $feature
-                      (add-atom $ledger (AiTrainingFeature $feature $ordinal $source $kind)))))
+                      (let $local
+                        (add-atom $ledger
+                          (AiTrainingFeature $feature $ordinal $source $kind))
+                        (add-atom $training
+                          (AiTrainingPosting $feature $name $ordinal $source $kind))))))
      (+ $ordinal 1)))
 (= (ai-math:train-declaration $training $source $ordinal $decl)
    (let* (($kind (ai-math:declaration-kind $decl))
@@ -186,27 +321,172 @@
      (let ($ordinal $source $kind) $entry
        (if (ai-math:training-before $source $cutoff)
          (+ $sum (if (== $kind Self) $self-weight 1.0)) $sum))))
+; Unit evidence can be counted without sorting or changing its multiplicity.
+; Above binary64's exact-integer range, or at any other weight, replay the
+; original events in their original floating-addition order.
+(= (ai-math:training-entries $ledger $key)
+   (case $key
+     ((Uses (collapse (match $ledger (AiTrainingUse $event $source $kind) ($event $source $kind))))
+      ((Feature $feature) (collapse (match $ledger
+        (AiTrainingFeature $feature $ordinal $origin $role) ($ordinal $origin $role)))))))
+(= (ai-math:training-evidence-count $ledger $key $cutoff $policy)
+   (case $policy
+    ((AiTraining:Unit
+     (let* (($sources (case $key
+               ((Uses (collapse (match $ledger (AiTrainingUse $event $source $kind) $source)))
+                ((Feature $feature) (collapse (match $ledger
+                  (AiTrainingFeature $feature $ordinal $origin $role) $origin))))))
+            ($count (size-atom (filter-atom $sources $position (ai-math:training-before $position $cutoff)))))
+       (if (<= $count 9007199254740992)
+         (if (== $count 0) 0 (+ 0.0 $count))
+         (ai-math:training-sum (ai-math:training-entries $ledger $key) $cutoff 1.0))))
+     ((AiTraining:Weighted $self-weight)
+       (ai-math:training-sum (ai-math:training-entries $ledger $key) $cutoff $self-weight)))))
 (= (ai-math:bayes-from-training $search $training $goal $cutoff $sigma $penalty $self-weight)
    (let* (($candidates (sort-atom (filter-atom
                         (collapse (match $training
                           (AiTrainingCandidate $name $first $ordinal $ledger)
                           ($ordinal $first $name $ledger)))
                         $entry (ai-math:training-before (index-atom $entry 1) $cutoff))))
+          ($policy (if (== (str:number->string $self-weight) "1.0")
+                     AiTraining:Unit (AiTraining:Weighted $self-weight)))
           ($features (map-atom (sort-atom (ai-math:declaration-features $goal)) $feature
                        ($feature (ai-math:weight $search Feature $feature 1.0)))))
-     (map-atom $candidates $candidate
-       (let* ((($ordinal $first $name $ledger) $candidate)
-              ($total (ai-math:training-sum
-                        (collapse (match $ledger (AiTrainingUse $event $source $kind)
-                                                 ($event $source $kind))) $cutoff $self-weight)))
+     (if (== $policy AiTraining:Unit)
+       (ai-math:bayes-unit-sparse
+         $training $candidates $features $cutoff $sigma $penalty)
+       (map-atom $candidates $candidate
+         (let* ((($ordinal $first $name $ledger) $candidate)
+                ($total (ai-math:training-evidence-count $ledger Uses $cutoff $policy)))
+           ($name
+             (foldl-atom $features (ai-math:ln $total) $score $entry
+               (let ($feature $weight) $entry
+                 (let $seen (ai-math:training-evidence-count $ledger (Feature $feature) $cutoff $policy)
+                   (+ $score (* $weight (if (== $seen 0.0) $penalty
+                                           (ai-math:ln (/ (* $sigma $seen) $total))))))))))))))
+
+; The dense candidate/feature fold is the reference route for unit evidence.
+; It also remains the fallback above binary64's exact-integer range.
+(= (ai-math:bayes-unit $candidates $features $cutoff $sigma $penalty)
+   (map-atom $candidates $candidate
+     (let* ((($ordinal $first $name $ledger) $candidate)
+            ($sources (collapse (match $ledger (AiTrainingUse $event $source $kind) $source)))
+            ($count (size-atom (if (== $cutoff All) $sources
+                                 (filter-atom $sources $position (< $position $cutoff)))))
+            ($total (if (<= $count 9007199254740992) (+ 0.0 $count)
+                      (ai-math:training-sum (ai-math:training-entries $ledger Uses) $cutoff 1.0))))
+       ($name
+         (foldl-atom $features (ai-math:ln $total) $score $entry
+           (let ($feature $weight) $entry
+             (let $origins (collapse (match $ledger
+                               (AiTrainingFeature $feature $event $source $kind) $source))
+               (if (== $origins ()) (+ $score (* $weight $penalty))
+                 (let* (($feature-count (size-atom
+                             (if (== $cutoff All) $origins
+                               (filter-atom $origins $position (< $position $cutoff)))))
+                    ($seen (if (<= $feature-count 9007199254740992) (+ 0.0 $feature-count)
+                             (ai-math:training-sum
+                               (ai-math:training-entries $ledger (Feature $feature)) $cutoff 1.0))))
+               (+ $score (* $weight (if (== $seen 0) $penalty
+                                       (ai-math:ln (/ (* $sigma $seen) $total))))))))))))))
+
+; Unit evidence is sparse: most candidate premises have never been observed
+; with most goal features.  Start every candidate at the missing-feature
+; baseline, then add corrections only for indexed nonzero postings:
+;
+;   log(t_p) + penalty * sum_f w_f
+;     + sum_{s_pf>0} w_f * (log(sigma * s_pf / t_p) - penalty).
+;
+; This is the same real-valued score as the dense fold.  Contributions retain
+; feature order, and every posting retains its source position, so prefix
+; queries neither train on nor reveal the goal or later proofs.  Counts beyond
+; binary64's exact-integer range decline to the reference route.
+(= (ai-math:training-unit-total $ledger $cutoff)
+   (let $sources
+     (collapse (match $ledger (AiTrainingUse $event $source $kind) $source))
+     (size-atom
+       (if (== $cutoff All) $sources
+         (filter-atom $sources $position (< $position $cutoff))))))
+(= (ai-math:bayes-unit-summary $candidate $cutoff)
+   (let ($ordinal $first $name $ledger) $candidate
+     (AiBayesUnitCandidate $ordinal $first $name $ledger
+       (ai-math:training-unit-total $ledger $cutoff))))
+(= (ai-math:feature-entry-weight ($feature $weight)) $weight)
+(= (ai-math:training-posting-counts $training $feature $cutoff)
+   (let $names
+     (unique-atom
+       (map-atom
+         (filter-atom
+           (collapse (match $training
+             (AiTrainingPosting $feature $name $event $source $kind)
+             ($name $source)))
+           $posting
+           (let ($name $source) $posting
+             (ai-math:training-before $source $cutoff)))
+         $posting (car-atom $posting)))
+     (map-atom $names $name
+       (let $sources
+         (collapse (match $training
+           (AiTrainingPosting $feature $name $event $source $kind) $source))
          ($name
-           (foldl-atom $features (ai-math:ln $total) $score $entry
-             (let ($feature $weight) $entry
-               (let $seen (ai-math:training-sum
-                            (collapse (match $ledger (AiTrainingFeature $feature $event $source $kind)
-                                                     ($event $source $kind))) $cutoff $self-weight)
-                 (+ $score (* $weight (if (== $seen 0.0) $penalty
-                                       (ai-math:ln (/ (* $sigma $seen) $total)))))))))))))
+           (size-atom
+             (if (== $cutoff All) $sources
+               (filter-atom $sources $source (< $source $cutoff)))))))))
+(= (ai-math:bayes-feature-deltas
+      $training $totals $feature $weight $cutoff $sigma $penalty)
+   (map-atom
+     (ai-math:training-posting-counts $training $feature $cutoff)
+     $entry
+     (let ($name $seen-count) $entry
+       (let* (($seen (+ 0.0 $seen-count))
+              ($total (ai-math:get $totals (BayesTotal $name) 0.0)))
+         ($name (* $weight
+           (- (ai-math:ln (/ (* $sigma $seen) $total)) $penalty)))))))
+(= (ai-math:bayes-unit-sparse
+      $training $candidates $features $cutoff $sigma $penalty)
+   (let* (($summaries (map-atom $candidates $candidate
+                         (ai-math:bayes-unit-summary $candidate $cutoff)))
+          ($unsafe (filter-atom $summaries $summary
+                     (> (index-atom $summary 5) 9007199254740992))))
+     (if (not (== $unsafe ()))
+       (ai-math:bayes-unit $candidates $features $cutoff $sigma $penalty)
+       (let* (($totals (new-space))
+              ($stored-totals (map-atom $summaries $summary
+                (let (AiBayesUnitCandidate $ordinal $first $name $ledger $count) $summary
+                  (let $total (+ 0.0 $count)
+                    (add-atom $totals
+                      (AiEntry (BayesTotal $name) $total))))))
+              ($weight-sum (list:sum-by ai-math:feature-entry-weight $features))
+              ($scores (new-space))
+              ($base-end (ai-math:store-contributions $scores
+                (map-atom $summaries $summary
+                  (let (AiBayesUnitCandidate $ordinal $first $name $ledger $count) $summary
+                    (let $total (+ 0.0 $count)
+                      ($name (+ (ai-math:ln $total)
+                                (* $penalty $weight-sum))))))
+                0))
+              ($delta-end (foldl-atom $features $base-end $next $entry
+                (let ($feature $weight) $entry
+                  (ai-math:store-contributions $scores
+                    (ai-math:bayes-feature-deltas
+                      $training $totals $feature $weight $cutoff $sigma $penalty)
+                    $next)))))
+         (map-atom $summaries $summary
+           (let (AiBayesUnitCandidate $ordinal $first $name $ledger $count) $summary
+             ($name (ai-math:contribution-score $scores $name))))))))
+(= (ai-math:naive-bayes-prefix-unit-reference
+      (AiSearch $count $facts $weights $training)
+      $goal $index $sigma $penalty)
+   (let* (($search (AiSearch $count $facts $weights $training))
+          ($candidates (sort-atom (filter-atom
+            (collapse (match $training
+              (AiTrainingCandidate $name $first $ordinal $ledger)
+              ($ordinal $first $name $ledger)))
+            $entry (< (index-atom $entry 1) $index))))
+          ($features (map-atom
+            (sort-atom (ai-math:declaration-features $goal)) $feature
+            ($feature (ai-math:weight $search Feature $feature 1.0)))))
+     (ai-math:bayes-unit $candidates $features $index $sigma $penalty)))
 ; Arbitrary training subsets retain their meaning. Corpus queries use the
 ; already prepared ledger with a prefix cutoff, not an assumed subset match.
 (= (ai-math:naive-bayes $search $goal $earlier $sigma $penalty $self-weight)
@@ -238,6 +518,19 @@
                      (($name (/ $recency-weight
                                 (+ 1.0 (/ (- $index (ai-math:declaration-index $fact)) 10.0))))) ())))
      (union-atom $definition (union-atom $shared (union-atom $named $recent)))))
+(= (ai-math:fact-background-contributions
+      $search $goal $index $fact $name-weight $recency-weight)
+   (let* (($name (ai-math:declaration-name $fact))
+          ($kind (ai-math:declaration-kind $fact))
+          ($named (if (and (ai-math:contains (THM AXIOM) $kind)
+                           (not (== $name-weight 0.0)))
+                    (($name (* $name-weight (ai-math:name-similarity $search
+                                            (ai-math:declaration-name $goal) $name)))) ()))
+          ($recent (if (and (ai-math:contains (THM AXIOM) $kind)
+                            (not (== $recency-weight 0.0)))
+                     (($name (/ $recency-weight
+                                (+ 1.0 (/ (- $index (ai-math:declaration-index $fact)) 10.0))))) ())))
+     (union-atom $named $recent)))
 (= (ai-math:bayes-bonuses $ranked $weight $decay $index)
    (if (== $ranked ()) ()
      (let ($entry $rest) (decons-atom $ranked)
@@ -249,13 +542,26 @@
    (let $search (AiSearch $count $facts $weights $training)
      (case (ai-math:search-goal $search $index)
        (((Error $reason $where) (Error $reason $where))
-        ($goal
-         (let* (($earlier (ai-math:search-before $search $index))
-                ($base (foldl-atom $earlier () $out $fact
-                         (union-atom $out (ai-math:fact-contributions $search $goal $index $fact
-                           (ai-math:option $options name-weight 0.0)
-                           (ai-math:option $options recency-weight 1.0)))))
-                ($votes (ai-math:knn $search (ai-math:declaration-symbols $goal) $earlier 24))
+        ($goal (ai-math:rank-for $search $index $goal $limit $options))))))
+
+; An intermediate statement has its own features, while its source frontier
+; remains explicit. Its original proof and later facts never train the query.
+(= (ai-math:rank-for (AiSearch $count $facts $weights $training) $index $goal $limit $options)
+   (let $search (AiSearch $count $facts $weights $training)
+     (if (or (< $index 0) (> $index $count))
+       (Error (AiMathGoalIndex $index) ai-math:rank-for)
+       (let* (($earlier (ai-math:search-before $search $index))
+                ($base (union-atom
+                         (ai-math:overlap-contributions $search
+                           (ai-math:declaration-symbols $goal) $index)
+                         (foldl-atom $earlier () $out $fact
+                           (union-atom $out
+                             (ai-math:fact-background-contributions
+                               $search $goal $index $fact
+                               (ai-math:option $options name-weight 0.0)
+                               (ai-math:option $options recency-weight 1.0))))))
+                ($votes (ai-math:knn-prefix $search
+                          (ai-math:declaration-symbols $goal) $index 24))
                 ($top (ai-math:maximum-score $votes))
                 ($knn (if (> $top 0.0)
                         (map-atom $votes $entry
@@ -269,10 +575,9 @@
                            (ai-math:option $options nb-penalty -4.0)
                            (ai-math:option $options nb-self-weight 1.0)))
                          $nb-weight (ai-math:option $options nb-decay 8.0) 0)))
-                ($allowed (map-atom $earlier $fact (ai-math:declaration-name $fact)))
                 ($scores (ai-math:group-sums (union-atom $base (union-atom $knn $nb)))))
-           (list:take $limit (ai-math:sort-scores
-             (filter-atom $scores $entry (ai-math:contains $allowed (car-atom $entry)))))))))))
+           (list:take $limit
+             (ai-math:sort-scores-with-order $weights $index $scores))))))
 
 (= (ai-math:diverse-slices $search $index)
    (ai-math:diverse-slices $search $index 24 4))
@@ -283,14 +588,18 @@
         ($goal
          (let* (($earlier (ai-math:search-before $search $index))
                 ($allowed (map-atom (filter-atom $earlier $decl
-                             (ai-math:contains (THM AXIOM) (ai-math:declaration-kind $decl)))
+                             (ai-math:contains (THM AXIOM)
+                               (ai-math:declaration-kind $decl)))
                             $decl (ai-math:declaration-name $decl)))
                 ($bayes (list:take $count (ai-math:sort-scores
-                          (filter-atom (ai-math:naive-bayes-prefix $search $goal $index 10.0 -4.0 1.0)
-                            $entry (ai-math:contains $allowed (car-atom $entry))))))
+                          (filter-atom
+                            (ai-math:naive-bayes-prefix
+                              $search $goal $index 10.0 -4.0 1.0)
+                            $entry
+                            (ai-math:contains $allowed (car-atom $entry))))))
                 ($knn (foldl-atom
-                        (list:take $nearest (ai-math:neighbors $search
-                          (ai-math:declaration-symbols $goal) $earlier)) () $found $entry
+                        (list:take $nearest (ai-math:neighbors-prefix $search
+                          (ai-math:declaration-symbols $goal) $index)) () $found $entry
                         (let $decl (car-atom $entry)
                           (foldl-atom (cons-atom (ai-math:declaration-name $decl)
                                         (sort-atom (ai-math:declaration-dependencies $decl)))
@@ -299,10 +608,17 @@
                                      (not (ai-math:contains $out $name)))
                               (union-atom $out ($name)) $out)))))
                 ($symbol (list:take $count (ai-math:sort-scores
-                           (map-atom (filter-atom $earlier $decl
-                                       (ai-math:contains $allowed (ai-math:declaration-name $decl)))
-                             $decl ((ai-math:declaration-name $decl)
-                               (ai-math:overlap $search (ai-math:declaration-symbols $goal) $decl)))))))
+                           (map-atom
+                             (filter-atom
+                               (ai-math:overlap-rows $search
+                                 (ai-math:declaration-symbols $goal) $index)
+                               $row
+                               (let (AiOverlapScore $ordinal $fact $score) $row
+                                 (ai-math:contains (THM AXIOM)
+                                   (ai-math:declaration-kind $fact))))
+                             $row
+                             (let (AiOverlapScore $ordinal $fact $score) $row
+                               ((ai-math:declaration-name $fact) $score)))))))
            (DiverseSlices (nb (ai-math:entry-names $bayes)) (knn (list:take (* 2 $count) $knn))
              (sym (ai-math:entry-names
                     (filter-atom $symbol $entry (> (index-atom $entry 1) 0.0)))))))))))

@@ -82,6 +82,26 @@
                    (str:join "" ($prefix "all_goals ((try intros); (try simp only [" $unfold "] at *); grind)")))))))))
        $rows)))
 
+; Bounded outer selection is a strategy parameter, not a language cutoff.
+; Each resulting subgoal receives both the native closer and backward search.
+(= (ai-math:apply2-tactics $premises $definitions)
+   (ai-math:apply2-tactics $premises $definitions 6))
+(= (ai-math:apply2-tactics $premises $definitions $limit)
+   (let* (($p (ai-math:lean-names $premises)) ($h (ai-math:prover-haves $p))
+          ($b (ai-math:prover-bridge)) ($u (ai-math:prover-unfold (ai-math:lean-names $definitions)))
+          ($all (str:join ", " $p)))
+     (let (AiProver:Apply $count $rows)
+       (foldl-atom (list:take $limit $p) (AiProver:Apply 0 ()) $state $name
+         (let* (((AiProver:Apply $i $rows) $state)
+                ($prefix (str:join "" ("intros\n" $h "(try simp only [" $b "] at *)\napply hp" (str:number->string $i) "\n"))))
+           (AiProver:Apply (+ $i 1) (union-atom $rows
+             (map-atom (("" $b) ("-unfold" $u)) $variant
+               (let ($tag $unfold) $variant
+                 (AiITP:Candidate (str:join "" ("apply2" $tag "-" (str:number->string $i)))
+                   (str:join "" ($prefix "all_goals ((try intros); (try simp only [" $unfold
+                     "] at *); (first | grind | solve_by_elim (maxDepth := 10) [" $all "]))")))))))))
+       $rows)))
+
 (= (ai-math:duper-tactics $premises $definitions)
    (let* (($haves (ai-math:prover-haves (ai-math:lean-names $premises)))
           ($bridge (ai-math:prover-bridge))

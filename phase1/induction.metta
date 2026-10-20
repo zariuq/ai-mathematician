@@ -11,7 +11,7 @@
 (= (ai-math:ind-named $term $scope $path $env)
    (case $term
      (((DB $i)
-       (if (and (ai-math:itp-natural $i) (< $i (size-atom $env)))
+       (if (and (ai-math:natural $i) (< $i (size-atom $env)))
          (AiInd:Syntax (VAR (index-atom $env (- (- (size-atom $env) $i) 1))))
          (AiInd:Request free-variable $term)))
       ((ALL $ty $body) (ai-math:ind-named-binder ALL $ty $body $scope $path $env))

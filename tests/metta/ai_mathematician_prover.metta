@@ -31,7 +31,7 @@
       ($other $other))))
 (= (prover-example:batch $rows)
    (ai-math:itp-batch-ready (prover-example:context) "goal" 7
-     ((AiITP:Candidate "same" "exact proposal")) (json-parse $rows)))
+     ((AiITP:Candidate "same" "exact proposal")) (json:parse $rows)))
 
 !(test (ai-math:itp-budget-valid (AiITP:Budget 0 0 0)) true)
 !(test (ai-math:itp-budget-valid (AiITP:Budget 30000 200000 8000)) true)
@@ -92,7 +92,7 @@
       ($other Wrong))) BadIdentity)
 !(test (prover-example:transport
    (ai-math:itp-decode (prover-example:context) "goal" 7 "check"
-     (json-parse "{\"schema\":\"ai-math.itp.v1\",\"target\":\"goal\",\"kind\":\"batch\",\"attempts\":[]}"))) BadTransport)
+     (json:parse "{\"schema\":\"ai-math.itp.v1\",\"target\":\"goal\",\"kind\":\"batch\",\"attempts\":[]}"))) BadTransport)
 
 !(test
    (ai-math:prover-summarize-hints ("a" "b") ("z")

@@ -282,7 +282,7 @@
                (proc:run ($executable "--mode" "portfolio" "--input_syntax" "tptp"
                           "--output_axiom_names" "on" "--proof" "tptp"
                           "-t" (str:number->string $seconds))
-                 ((stdin $input) (timeout-ms (if (== $seconds 0) 0 (+ (* $seconds 1000) 15000)))))))))))
+                 ((lifetime owner) (stdin $input) (timeout-ms (if (== $seconds 0) 0 (+ (* $seconds 1000) 15000)))))))))))
       ($request $request))))
 (= (ai-math:vampire-observation $context $problem $observation)
    (case $observation

@@ -5,7 +5,7 @@
    (case $value
      (((JsonArray $values)
        (let $strings (map-atom $values $item
-              (case $item (((JsonString $text) $text) ($other AiProposal:InvalidName))))
+              (case $item (($text $text) ($other AiProposal:InvalidName))))
          (if (foldl-atom $strings true $ok $name (and $ok (== (get-type $name) String)))
            $strings AiProposal:InvalidNames)))
       ($other AiProposal:InvalidNames))))
@@ -13,27 +13,30 @@
    (case $state
      (((AiProposal:Baseline $names)
        (if (== (str:trim $line) "") $state
-         (let $row (json-parse $line)
+         (let $row (json:parse $line)
            (if (ai-math:run-unique-object $row)
-             (if (== (json-object-get $row "schema") (JsonString "ai-math.run.v1")) $state
-               (case ((json-object-get $row "goal") (json-object-get $row "vampire"))
-                 ((((JsonString $name) (JsonString $status))
-                   (case (ai-math:get $catalog $name AiMissing)
+             (if (== (json:get $row "schema") "ai-math.run.v1") $state
+               (case ((json:get $row "goal") (json:get $row "vampire"))
+                 ((($name $status)
+                   (if (and (== (get-type $name) String)
+                            (== (get-type $status) String))
+                    (case (ai-math:get $catalog $name AiMissing)
                      (((AiITP:Declaration $i THM)
-                       (let* (($premises (ai-math:proposal-strings (json-object-get $row "premises")))
-                              ($defs (ai-math:proposal-strings (json-object-get $row "defs")))
-                              ($label (json-object-get $row "proved_by")))
+                       (let* (($premises (ai-math:proposal-strings (json:get $row "premises")))
+                              ($defs (ai-math:proposal-strings (json:get $row "defs")))
+                              ($label (json:get $row "proved_by")))
                          (if (and (not (== $premises AiProposal:InvalidNames))
                                   (and (not (== $defs AiProposal:InvalidNames))
                                     (or (== $label JsonNull)
-                                      (case $label (((JsonString $text) true) ($other false))))))
+                                      (== (get-type $label) String))))
                            (if (== (ai-math:get $space $name AiMissing) AiMissing)
                              (let $stored (ai-math:put $space $name (AiProposal:Advice $i $premises $defs $status))
-                               (AiProposal:Baseline (if (or (== $label JsonNull) (== $label (JsonString "")))
+                               (AiProposal:Baseline (if (or (== $label JsonNull) (== $label ""))
                                  (cons-atom $name $names) $names)))
                              (AiProposal:Fault duplicate-baseline-goal $name))
                            (AiProposal:Fault baseline-shape $name))))
-                      ($other (AiProposal:Fault unknown-baseline-goal $name)))))
+                      ($other (AiProposal:Fault unknown-baseline-goal $name))))
+                    (AiProposal:Fault baseline-shape (str:sha256 $line))))
                   ($other (AiProposal:Fault baseline-shape (str:sha256 $line))))))
              (AiProposal:Fault malformed-baseline-line (str:sha256 $line))))))
       ($other $other))))
@@ -59,7 +62,7 @@
                         ($sources (map-atom
                           ("phase1/llm.metta" "phase1/llm_transport.metta" "phase1/http_transport.metta"
                            "phase1/llm_ledger.metta" "phase1/llm_ledger_main.metta" "phase1/llm_experiment.metta"
-                           "phase1/llm_experiment_main.metta")
+                           "phase1/llm_experiment_main.metta" "phase1/proof_advice.metta")
                           $file ($file (str:sha256 (fs:read-text (str:join "" ($root "/" $file)))))))
                         ($identity (ai-math:run-descriptor $root $corpus $policy ($toolchain $sources)))
                         ($owner (ai-math:run-open-identity $context $path $resume $identity)))
@@ -96,8 +99,9 @@
      (((AiProposal:Advice $index $original $defs $status)
        (let* (($context (index-atom $owner 1))
               ((AiProver $search $thf $itp $vampire $options) $context)
+              ($limit (ai-math:option (ai-math:llm-config $client Options) premise-limit 96))
               ($premises (if (str:starts-with $status "Theorem") $original
-                (list:take 16 (filter-atom (ai-math:entry-names (ai-math:rank $search $index 24)) $name
+                (list:take $limit (filter-atom (ai-math:entry-names (ai-math:rank $search $index $limit)) $name
                   (case (ai-math:thf-lookup $thf Name $name)
                     (((AiTHF:Binding $id (AiTHF:Fact $i $kind $n $s $b)) (ai-math:contains (THM AXIOM) $kind))
                      ($other false)))))))
@@ -116,8 +120,8 @@
            (((JsonObject $fields)
              (ai-math:run-publish $owner $target
                (JsonObject (union-atom $fields
-                 ((JsonPair "model" (JsonString (ai-math:llm-config $client Model)))
-                  (JsonPair "mode" (JsonString (str:symbol->string $mode))))))))
+                 ((JsonPair "model" (ai-math:llm-config $client Model))
+                  (JsonPair "mode" (str:symbol->string $mode)))))))
             ($other $other)))))
       ($other (AiProposal:Fault unknown-target $target)))))
 (= (ai-math:proposal-one $owner $target)

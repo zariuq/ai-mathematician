@@ -69,6 +69,7 @@
               (definition-depth (or (== $value All) (ai-math:itp-natural $value)))
               (trace-directory (and (== (get-type $value) String) (> (str:byte-length $value) 0)))
               (induction (or (== $value true) (== $value false)))
+              (smt (or (== $value true) (== $value false)))
               (induction-without-advice (or (== $value true) (== $value false)))
               (use-duper (or (== $value Auto) (or (== $value true) (== $value false))))
               (induction-policy (ai-math:prover-policy-valid $value))
@@ -77,12 +78,12 @@
                                   (foldl-atom $value true $valid $k (and $valid (ai-math:itp-natural $k))) false))
               (lean-stages (if (== (get-metatype $value) Expression)
                               (foldl-atom $value true $valid $stage
-                                (and $valid (ai-math:contains (base followup apply duper) $stage))) false))
+                                (and $valid (ai-math:contains (base followup apply apply2 duper) $stage))) false))
               (search-options (if (== (get-metatype $value) Expression)
                                 (foldl-atom $value true $valid $option
                                   (and $valid (case $option
                                     ((($name $number) (== (get-type $number) Number)) ($other false))))) false))
-              ($stage (if (ai-math:contains (base followup apply duper) $stage)
+              ($stage (if (ai-math:contains (base followup apply apply2 duper) $stage)
                         (ai-math:prover-policy-valid $value) false)))))
           ($other false)))))
      false))
@@ -109,6 +110,8 @@
    (str:join "" ($directory "/" $digest ".problem.p")))
 (= (ai-math:trace-object-path $directory Solver $digest)
    (str:join "" ($directory "/" $digest ".solver.szs")))
+(= (ai-math:trace-object-path $directory SMTProblem $digest)
+   (str:join "" ($directory "/" $digest ".problem.smt2")))
 (= (ai-math:trace-verify-object $kind $digest $text $path)
    (let $observed (fs:read-text $path)
      (if (and (== (get-type $observed) String) (== $observed $text))
@@ -142,20 +145,24 @@
       ($problem-text
        (ai-math:trace-archive-text $goal $slice $summary $problem-text $stdout $payloads $directory)))))
 (= (ai-math:trace-archive-text $goal $slice $summary $problem-text $stdout $payloads $directory)
-   (let* (($problem-object (ai-math:trace-write-object $directory Problem $problem-text))
+   (let $parsed-digest (str:sha256 (repr $payloads))
+     (ai-math:trace-archive-format $goal $slice $summary $problem-text $stdout $parsed-digest
+       $directory Problem "ai-math.tstp.v1")))
+(= (ai-math:trace-archive-format $goal $slice $summary $problem-text $stdout $parsed-digest $directory $kind $schema)
+   (let* (($problem-object (ai-math:trace-write-object $directory $kind $problem-text))
           ($solver-object (ai-math:trace-write-object $directory Solver $stdout)))
      (ai-math:trace-archive-objects
-       $goal $slice $summary $payloads $problem-object $solver-object)))
-(= (ai-math:trace-archive-objects $goal $slice $summary $payloads $problem-object $solver-object)
+       $goal $slice $summary $parsed-digest $problem-object $solver-object $schema)))
+(= (ai-math:trace-archive-objects $goal $slice $summary $parsed-digest $problem-object $solver-object $schema)
    (case $problem-object
      (((AiATP:TraceObject $pk $ph $pb)
        (case $solver-object
          (((AiATP:TraceObject $sk $sh $sb)
            (AiATP:ArchivedAdvice $summary
-             (AiATP:TraceRef "ai-math.tstp.v1" $goal $slice
+             (AiATP:TraceRef $schema $goal $slice
                (AiATP:TraceObject $pk $ph $pb)
                (AiATP:TraceObject $sk $sh $sb)
-               (str:sha256 (repr $payloads)))))
+               $parsed-digest)))
           ($solver-fault (AiATP:TraceFailure $summary $solver-fault)))))
       ($problem-fault (AiATP:TraceFailure $summary $problem-fault)))))
 (= (ai-math:prover-retain-advice $context $problem $goal $slice $summary $report $options)
@@ -169,7 +176,39 @@
    (case $summary
      (((AiATP:ArchivedAdvice $advice $reference) $advice)
       ((AiATP:TraceFailure $advice $fault) $advice)
+      ((AiATP:SMTAdvice $advice) (ai-math:prover-advice $advice))
       ($other $other))))
+
+; The optional SMT fallback uses the same checked reconstruction stages.
+; Its input format and provenance remain explicit in the retained advice.
+(= (ai-math:prover-smt-retain $problem $goal $k $summary $report $options)
+   (let $directory (ai-math:option $options trace-directory AiATP:NoTrace)
+     (case ($summary $report)
+       ((((AiATP:Advice "Theorem" $p $d)
+           (AiATP:Report $status $names $defs $refs
+             (proc:result $termination $completion $stdout $stderr $capture) $envelope $payloads))
+         (if (== $directory AiATP:NoTrace) $summary
+           (let* (($text (ai-math:smt-text $problem))
+                  ($parsed-digest (str:sha256 (repr $payloads))))
+             (ai-math:trace-archive-format $goal $k $summary $text
+               $stdout $parsed-digest $directory SMTProblem "ai-math.smtlib-tstp.v1"))))
+        ($other $summary)))))
+(= (ai-math:prover-smt-slices $context $goal $ranked $slices $executable $seconds $options)
+   (if (== $slices ()) ()
+     (let* ((($k $rest) (decons-atom $slices))
+            ($problem (ai-math:smt-problem $context $goal (list:take $k $ranked)
+                        ((definition-depth 3)))))
+       (case $problem
+         (((AiSMT:Problem $commands $ids $skipped $unexpanded)
+           (let* (($report (ai-math:smt-vampire $context $problem $executable $seconds ("-updr" "off" "-nm" "0")))
+                  ($summary (ai-math:smt-summary $report))
+                  ($retained (ai-math:prover-smt-retain $problem (index-atom $goal 3) $k $summary $report $options))
+                  ($slice (AiProver:Slice $k (AiATP:SMTAdvice $retained) $skipped $unexpanded)))
+             (case $summary
+               (((AiATP:Advice "Theorem" $p $d) ($slice))
+                ($other (cons-atom $slice
+                  (ai-math:prover-smt-slices $context $goal $ranked $rest $executable $seconds $options)))))))
+          ($request ((AiProver:Slice $k (AiProver:TranslationRequest $request) () ()))))))))
 
 
 ; Every slice is attempted: a different sufficient set may reconstruct better.
@@ -192,8 +231,16 @@
               ($goal-defs (ai-math:prover-goal-defs $thf (ai-math:search-goal $search $i)))
               ($sweep (ai-math:prover-slices $thf $name $i $ranked $slices $vampire
                         (ai-math:option $options vampire-seconds 30)
-                        (ai-math:option $options definition-depth All) $options)))
-         (ai-math:prover-summarize-hints $facts $goal-defs $sweep)))
+                        (ai-math:option $options definition-depth All) $options))
+              ($combined
+                (if (and (ai-math:option $options smt false)
+                         (foldl-atom $sweep true $none $slice
+                           (and $none (case (ai-math:prover-advice (index-atom $slice 2))
+                             (((AiATP:Advice "Theorem" $p $d) false) ($other true))))))
+                  (union-atom $sweep (ai-math:prover-smt-slices $thf
+                    (AiTHF:Fact $i THM $n $stmt NoBody) $ranked (list:take 4 $slices)
+                    $vampire (ai-math:option $options vampire-seconds 30) $options)) $sweep)))
+         (ai-math:prover-summarize-hints $facts $goal-defs $combined)))
       ($other (AiProver:Fault $name unknown-theorem $other)))))
 (= (ai-math:prover-slices $thf $goal $index $ranked $slices $vampire $seconds $depth $options)
    (if (== $slices ()) ()
@@ -290,10 +337,14 @@
        (union-atom (ai-math:prover-suffix (ai-math:followup-tactics $premises $defs $goal-defs) $number)
          (ai-math:prover-followups $rest $defs $goal-defs (+ $number 1))))))
 (= (ai-math:prover-applies $sets $defs $number)
+   (ai-math:prover-applies $sets $defs $number apply))
+(= (ai-math:prover-applies $sets $defs $number $stage)
    (if (== $sets ()) ()
      (let ($premises $rest) (decons-atom $sets)
-       (union-atom (ai-math:prover-suffix (ai-math:apply-tactics $premises $defs) $number)
-         (ai-math:prover-applies $rest $defs (+ $number 1))))))
+       (union-atom (ai-math:prover-suffix
+           (if (== $stage apply2) (ai-math:apply2-tactics $premises $defs)
+             (ai-math:apply-tactics $premises $defs)) $number)
+         (ai-math:prover-applies $rest $defs (+ $number 1) $stage)))))
 (= (ai-math:prover-stage-candidates $stage (AiProver:Hints $sets $defs $goal-defs $status $trace) $extras)
    (let $advised (str:starts-with $status "Theorem")
      (case $stage
@@ -307,6 +358,7 @@
                     (ai-math:prover-secondary-base (cdr-atom $sets) $defs $goal-defs 2)
                     (if $advised (ai-math:prover-followups $sets $defs $goal-defs 1) ())))
         (apply (if $advised (ai-math:prover-applies $sets $defs 1) ()))
+        (apply2 (if $advised (ai-math:prover-applies $sets $defs 1 apply2) ()))
         (duper (if $advised (ai-math:prover-dupers (list:take 2 $sets) $defs 1) ()))
         ($other (AiProver:InvalidStage $stage))))))
 

@@ -39,6 +39,15 @@
 (= (ai-math:contains $items $item)
    (if (== (intersection-atom ($item) $items) ()) false true))
 
+; Source positions, binder indices and explicit budgets share this carrier.
+(= (ai-math:natural $value)
+   (if (== (get-type $value) Number)
+     (let $text (str:number->string $value)
+       (and (> (str:byte-length $text) 0)
+         (foldl-atom (str:codepoints $text) true $ok $cp
+           (and $ok (ai-math:contains ("0" "1" "2" "3" "4" "5" "6" "7" "8" "9") $cp)))))
+     false))
+
 (= (ai-math:option $options $key $default)
    (if (== $options ()) $default
      (let (($name $value) $rest) (decons-atom $options)

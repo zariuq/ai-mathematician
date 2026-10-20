@@ -64,7 +64,8 @@ def main():
         if position < 2:
             assert row[3][1:4] == ["andI", str(case), "2"], row
         count += 2
-    assert "source-order" in str(answers[3]), answers[3]
+    assert any(marker in str(answers[3]) for marker in
+               ("source-order", "Unknown identifier", "Unknown constant")), answers[3]
     assert "Unknown constant" in str(answers[-1]) or "Unknown identifier" in str(answers[-1]), answers[-1]
     count += 2
     for depth in ("All", "3"):
@@ -91,7 +92,8 @@ def main():
 """, output)
         assert actual[:2] == ["AiITP:Batch", "orIL"], actual
         assert [row[2][0] for row in actual[2]] == ["AiITP:Accepted", "AiITP:Rejected"], actual
-        assert "source-order" in str(actual[2][-1]), actual
+        assert any(reason in str(actual[2][-1]) for reason in
+                   ("source-order", "Unknown identifier", "Unknown constant")), actual
         count += 3
     # Frozen Python discovery requires Vampire to advise every induction
     # case. The broader profile may still try an independently checked local

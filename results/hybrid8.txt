@@ -1,0 +1,8 @@
+mul_nat_p
+nat_Subq_add_ex
+mul_nat_SL
+mul_add_nat_distrL
+mul_nat_Subq_R
+Pi_SNo_In_int
+SNo_exp_SNo_nat
+exp_SNo_1_bd

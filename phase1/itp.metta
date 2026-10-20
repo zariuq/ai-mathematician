@@ -93,12 +93,7 @@
 ; launching a process, including its wall timeout, rather than relying on a
 ; backend to coerce a malformed count or silently remove a limit.
 (= (ai-math:itp-natural $value)
-   (if (== (get-type $value) Number)
-     (let $text (str:number->string $value)
-       (and (> (str:byte-length $text) 0)
-         (foldl-atom (str:codepoints $text) true $ok $cp
-           (and $ok (ai-math:contains ("0" "1" "2" "3" "4" "5" "6" "7" "8" "9") $cp)))))
-     false))
+   (ai-math:natural $value))
 (= (ai-math:itp-budget-valid $budget)
    (case $budget
      (((AiITP:Budget $wall $heartbeats $recursion)
@@ -156,15 +151,15 @@
 
 (= (ai-math:itp-statement-catalog $context)
    (ai-math:itp-send $context "" 0 "statements"
-     (json-stringify (JsonObject
-       ((JsonPair "schema" (JsonString "ai-math.itp.v1"))
-        (JsonPair "target" (JsonString ""))
-        (JsonPair "operation" (JsonString "statements"))
-        (JsonPair "profile" (JsonString (ai-math:itp-profile-name $context)))
-        (JsonPair "heartbeats" (JsonNumber "0"))
-        (JsonPair "recursion" (JsonNumber "0"))
+     (json:stringify (JsonObject
+       ((JsonPair "schema" "ai-math.itp.v1")
+        (JsonPair "target" "")
+        (JsonPair "operation" "statements")
+        (JsonPair "profile" (ai-math:itp-profile-name $context))
+        (JsonPair "heartbeats" 0)
+        (JsonPair "recursion" 0)
         (JsonPair "targets" (JsonArray
-          (map-atom (ai-math:itp-theorems $context) $name (JsonString $name))))))) 0))
+          (map-atom (ai-math:itp-theorems $context) $name $name)))))) 0))
 
 (= (ai-math:itp-signature (AiITP:Statements $space) $name)
    (ai-math:get $space $name (AiITP:MissingStatement $name)))
@@ -174,7 +169,7 @@
      (((AiITP $catalog $root $lean $profile)
        (ai-math:itp-observation $context $target $index $operation
          (proc:run (ai-math:itp-command $context)
-           ((cwd $root) (stdin $input) (timeout-ms $milliseconds)))))
+           ((lifetime owner) (cwd $root) (stdin $input) (timeout-ms $milliseconds)))))
       ($other $other))))
 (= (ai-math:itp-command (AiITP $catalog $root $lean $profile))
    (let $context (AiITP $catalog $root $lean $profile)
@@ -194,15 +189,15 @@
          (((AiITP:Declaration $i THM)
            (case $budget
              (((AiITP:Budget $milliseconds $heartbeats $recursion)
-               (let $input (json-stringify
+               (let $input (json:stringify
                  (JsonObject
-                   ((JsonPair "schema" (JsonString "ai-math.itp.v1"))
-                    (JsonPair "target" (JsonString $target))
-                    (JsonPair "operation" (JsonString $operation))
-                    (JsonPair "profile" (JsonString (ai-math:itp-profile-name $context)))
-                    (JsonPair "tactic" (JsonString $tactic))
-                    (JsonPair "heartbeats" (JsonNumber (str:number->string $heartbeats)))
-                    (JsonPair "recursion" (JsonNumber (str:number->string $recursion))))))
+                   ((JsonPair "schema" "ai-math.itp.v1")
+                    (JsonPair "target" $target)
+                    (JsonPair "operation" $operation)
+                    (JsonPair "profile" (ai-math:itp-profile-name $context))
+                    (JsonPair "tactic" $tactic)
+                    (JsonPair "heartbeats" $heartbeats)
+                    (JsonPair "recursion" $recursion))))
                  (ai-math:itp-send $context $target $i $operation $input $milliseconds)))
               ($other (AiITP:Fault $target invalid-budget $budget)))))
           ($other (AiITP:Rejected $target unknown-theorem $other)))))
@@ -215,7 +210,7 @@
            (proc:input $input-size $input-sent)))
        (if (and (== $out-seen $out-kept)
                 (and (== $err-seen $err-kept) (== $input-size $input-sent)))
-         (ai-math:itp-decode $context $target $index $operation (json-parse $stdout))
+         (ai-math:itp-decode $context $target $index $operation (json:parse $stdout))
          (AiITP:Unfinished $target incomplete-capture $observation)))
       ((proc:result $termination proc:timed-out $out $err $capture)
        (AiITP:Unfinished $target deadline $observation))
@@ -238,61 +233,62 @@
       ($other (AiITP:Fault $target protocol $reply)))))
 
 (= (ai-math:itp-response $context $target $index $operation $reply)
-   (if (and (== (json-object-get $reply "schema") (JsonString "ai-math.itp.v1"))
-            (== (json-object-get $reply "target") (JsonString $target)))
-     (case (json-object-get $reply "kind")
-       (((JsonString "checked")
+   (if (and (== (json:get $reply "schema") "ai-math.itp.v1")
+            (== (json:get $reply "target") $target))
+     (case (json:get $reply "kind")
+       (("checked"
          (if (== $operation "check")
            (ai-math:itp-checked $context $target $index
-             (json-object-get $reply "used") (json-object-get $reply "axioms"))
+             (json:get $reply "used") (json:get $reply "axioms"))
            (AiITP:Fault $target wrong-operation $reply)))
-        ((JsonString "statement")
+        ("statement"
          (if (== $operation "statement")
-           (case (json-object-get $reply "statement")
-             (((JsonString $text) (AiITP:Statement $target $text))
+           (case (json:get $reply "statement")
+             (($text (if (== (get-type $text) String)
+                       (AiITP:Statement $target $text)
+                       (AiITP:Fault $target invalid-statement $reply)))
               ($other (AiITP:Fault $target missing-statement $reply))))
            (AiITP:Fault $target wrong-operation $reply)))
-        ((JsonString "statements")
+        ("statements"
          (if (== $operation "statements")
-           (ai-math:itp-statements-ready $context (json-object-get $reply "statements"))
+           (ai-math:itp-statements-ready $context (json:get $reply "statements"))
            (AiITP:Fault $target wrong-operation $reply)))
-        ((JsonString "batch")
+        ("batch"
          (case $operation
            (((AiITP:BatchRequest $candidates)
              (ai-math:itp-batch-ready $context $target $index $candidates
-               (json-object-get $reply "attempts")))
+               (json:get $reply "attempts")))
             ($other (AiITP:Fault $target wrong-operation $reply)))))
-        ((JsonString "case-checked")
+        ("case-checked"
          (case $operation
            (((AiITP:CaseRequest $case)
-             (if (== (json-object-get $reply "case") (JsonNumber (str:number->string $case)))
-               (case (json-object-get $reply "caseCount")
-                 (((JsonNumber $text)
-                   (let $count (str:string->number $text)
+             (if (== (json:get $reply "case") $case)
+               (case (json:get $reply "caseCount")
+                 (($count
                      (if (and (ai-math:itp-natural $count) (> $count $case))
                        (case (ai-math:itp-checked $context $target $index
-                               (json-object-get $reply "used") (json-object-get $reply "axioms"))
+                               (json:get $reply "used") (json:get $reply "axioms"))
                          (((AiITP:Accepted $n $used $axioms) (AiITP:CaseAccepted $target $case $count $used $axioms))
                           ($other $other)))
-                       (AiITP:Fault $target invalid-case-count $reply))))
+                       (AiITP:Fault $target invalid-case-count $reply)))
                   ($other (AiITP:Fault $target missing-case-count $reply))))
                (AiITP:Fault $target case-identity $reply)))
             ($other (AiITP:Fault $target wrong-operation $reply)))))
-        ((JsonString "case-batch")
+        ("case-batch"
          (case $operation
            (((AiITP:CaseBatchRequest $candidates)
              (ai-math:itp-case-batch-ready $context $target $index $candidates
-               (json-object-get $reply "attempts")))
+               (json:get $reply "attempts")))
             ($other (AiITP:Fault $target wrong-operation $reply)))))
-        ((JsonString "context")
+        ("context"
          (case $operation
            (((AiITP:ContextRequest $premises $definitions)
              (ai-math:itp-context-ready $target $premises $definitions $reply))
             ($other (AiITP:Fault $target wrong-operation $reply)))))
-        ((JsonString "rejected")
-         (AiITP:Rejected $target (json-object-get $reply "reason") $reply))
-        ((JsonString "unfinished")
-         (AiITP:Unfinished $target (json-object-get $reply "reason") $reply))
+        ("rejected"
+         (AiITP:Rejected $target (json:get $reply "reason") $reply))
+        ("unfinished"
+         (AiITP:Unfinished $target (json:get $reply "reason") $reply))
         ($other (AiITP:Fault $target runner $reply))))
      (AiITP:Fault $target response-identity $reply)))
 
@@ -301,7 +297,7 @@
      (((JsonArray $rows)
        (let $decoded (map-atom $rows $row
           (case $row
-            (((JsonArray ((JsonString $name) (JsonString $text)))
+            (((JsonArray ($name $text))
               (AiITP:Signature $name $text))
              ($other AiITP:InvalidSignature))))
          (if (foldl-atom $decoded true $ok $row
@@ -321,15 +317,14 @@
 
 (= (ai-math:itp-string-array $values)
    (foldl-atom $values true $ok $value
-     (and $ok (case $value
-                (((JsonString $text) (== (get-type $text) String)) ($other false))))))
+     (and $ok (== (get-type $value) String))))
 
 (= (ai-math:itp-checked $context $target $index $used $axioms)
    (case ($used $axioms)
      ((((JsonArray $dependencies) (JsonArray $assumptions))
        (if (and (ai-math:itp-string-array $dependencies) (ai-math:itp-string-array $assumptions))
-         (let* (($names (map-atom $dependencies $name (json-string-value $name)))
-                ($axiom-names (map-atom $assumptions $name (json-string-value $name)))
+         (let* (($names (map-atom $dependencies $name $name))
+                ($axiom-names (map-atom $assumptions $name $name))
                 ($forbidden (filter-atom $names $name
                   (not (ai-math:itp-name-order $context $index $name))))
                 ($untrusted (filter-atom $axiom-names $name
@@ -362,17 +357,17 @@
            (if (ai-math:itp-candidates-valid $candidates)
              (if (ai-math:itp-budget-valid $budget) (case $budget
                (((AiITP:Budget $milliseconds $heartbeats $recursion)
-                 (let $input (json-stringify (JsonObject
-                   ((JsonPair "schema" (JsonString "ai-math.itp.v1"))
-                    (JsonPair "target" (JsonString $target))
-                    (JsonPair "operation" (JsonString "batch"))
-                    (JsonPair "profile" (JsonString (ai-math:itp-profile-name $context)))
-                    (JsonPair "heartbeats" (JsonNumber (str:number->string $heartbeats)))
-                    (JsonPair "recursion" (JsonNumber (str:number->string $recursion)))
+                 (let $input (json:stringify (JsonObject
+                   ((JsonPair "schema" "ai-math.itp.v1")
+                    (JsonPair "target" $target)
+                    (JsonPair "operation" "batch")
+                    (JsonPair "profile" (ai-math:itp-profile-name $context))
+                    (JsonPair "heartbeats" $heartbeats)
+                    (JsonPair "recursion" $recursion)
                     (JsonPair "candidates" (JsonArray (map-atom $candidates $candidate
                       (let (AiITP:Candidate $label $tactic) $candidate
-                        (JsonObject ((JsonPair "label" (JsonString $label))
-                                     (JsonPair "tactic" (JsonString $tactic)))))))))))
+                        (JsonObject ((JsonPair "label" $label)
+                                     (JsonPair "tactic" $tactic))))))))))
                    (ai-math:itp-send $context $target $i
                      (AiITP:BatchRequest $candidates) $input $milliseconds)))
                 ($other (AiITP:Fault $target invalid-budget $budget))))
@@ -398,11 +393,11 @@
          (((JsonObject $pairs)
            (let $keys (ai-math:itp-json-keys $pairs)
              (if (and (== (sort-atom $keys) (sort-atom ("index" "label" "result")))
-                      (and (== (json-object-get $row "index")
-                               (JsonNumber (str:number->string $ordinal)))
-                           (== (json-object-get $row "label") (JsonString $label))))
+                      (and (== (json:get $row "index")
+                               $ordinal)
+                           (== (json:get $row "label") $label)))
                (let $result (ai-math:itp-decode $context $target $index "check"
-                              (json-object-get $row "result"))
+                              (json:get $row "result"))
                  (case (ai-math:itp-batch-rows $context $target $index $more $rest (+ $ordinal 1))
                    (((AiITP:Rows $out) (AiITP:Rows (cons-atom (AiITP:Attempt $label $result) $out)))
                     ($fault $fault))))
@@ -463,19 +458,19 @@
            (((AiITP:Declaration $i THM)
              (let (AiITP:Budget $milliseconds $heartbeats $recursion) $budget
                (ai-math:itp-send $context $target $i (AiITP:CaseBatchRequest $candidates)
-                 (json-stringify (JsonObject
-                   ((JsonPair "schema" (JsonString "ai-math.itp.v1"))
-                    (JsonPair "target" (JsonString $target))
-                    (JsonPair "operation" (JsonString "case-batch"))
-                    (JsonPair "profile" (JsonString (ai-math:itp-profile-name $context)))
-                    (JsonPair "prefix" (JsonString $prefix))
-                    (JsonPair "heartbeats" (JsonNumber (str:number->string $heartbeats)))
-                    (JsonPair "recursion" (JsonNumber (str:number->string $recursion)))
+                 (json:stringify (JsonObject
+                   ((JsonPair "schema" "ai-math.itp.v1")
+                    (JsonPair "target" $target)
+                    (JsonPair "operation" "case-batch")
+                    (JsonPair "profile" (ai-math:itp-profile-name $context))
+                    (JsonPair "prefix" $prefix)
+                    (JsonPair "heartbeats" $heartbeats)
+                    (JsonPair "recursion" $recursion)
                     (JsonPair "candidates" (JsonArray (map-atom $candidates $candidate
                       (let (AiITP:CaseCandidate $case $label $tactic) $candidate
-                        (JsonObject ((JsonPair "case" (JsonNumber (str:number->string $case)))
-                                     (JsonPair "label" (JsonString $label))
-                                     (JsonPair "tactic" (JsonString $tactic))))))))))) $milliseconds)))
+                        (JsonObject ((JsonPair "case" $case)
+                                     (JsonPair "label" $label)
+                                     (JsonPair "tactic" $tactic)))))))))) $milliseconds)))
             ($other (AiITP:Rejected $target unknown-theorem $other))))
          (AiITP:Fault $target invalid-case-request ($prefix $candidates $budget))))
       ($other $other))))
@@ -495,10 +490,10 @@
        (case $row
          (((JsonObject $pairs)
            (if (and (== (sort-atom (ai-math:itp-json-keys $pairs)) (sort-atom ("index" "label" "result")))
-                    (and (== (json-object-get $row "index") (JsonNumber (str:number->string $ordinal)))
-                         (== (json-object-get $row "label") (JsonString $label))))
+                    (and (== (json:get $row "index") $ordinal)
+                         (== (json:get $row "label") $label)))
              (let $result (ai-math:itp-decode $context $target $index (AiITP:CaseRequest $case)
-                            (json-object-get $row "result"))
+                            (json:get $row "result"))
                (case (ai-math:itp-case-rows $context $target $index $more $rest (+ $ordinal 1))
                  (((AiITP:Rows $out)
                    (AiITP:Rows (cons-atom (AiITP:CaseAttempt $case $label $result) $out)))
@@ -541,19 +536,26 @@
      (if (== $rows ()) AiITP:BadContextRows
        (let* ((($name $more) (decons-atom $names)) (($row $rest) (decons-atom $rows)))
          (case $row
-           (((JsonArray ((JsonString $same) (JsonString $text)))
-             (if (== $name $same)
+           (((JsonArray ($same $text))
+             (if (and (== $name $same)
+                      (and (== (get-type $same) String)
+                           (== (get-type $text) String)))
                (case (ai-math:itp-context-rows $more $rest)
                  (((AiITP:ContextRows $out) (AiITP:ContextRows (cons-atom (AiITP:ContextText $name $text) $out)))
                   ($other $other))) AiITP:BadContextRows))
             ($other AiITP:BadContextRows)))))))
 (= (ai-math:itp-context-ready $target $premises $definitions $reply)
-   (case ((json-object-get $reply "statement") (json-object-get $reply "facts") (json-object-get $reply "definitions"))
-     ((((JsonString $statement) (JsonArray $facts) (JsonArray $defs))
-       (case ((ai-math:itp-context-rows $premises $facts) (ai-math:itp-context-rows $definitions $defs))
-         ((((AiITP:ContextRows $fact-texts) (AiITP:ContextRows $definition-texts))
-           (AiITP:PromptContext $target $statement $definition-texts $fact-texts))
-          ($other (AiITP:Fault $target context-identity $reply)))))
+   (case ((json:get $reply "statement") (json:get $reply "facts") (json:get $reply "definitions"))
+     ((($statement (JsonArray $facts) (JsonArray $defs))
+       (if (== (get-type $statement) String)
+         (case ((ai-math:itp-context-rows $premises $facts)
+                (ai-math:itp-context-rows $definitions $defs))
+           ((((AiITP:ContextRows $fact-texts)
+              (AiITP:ContextRows $definition-texts))
+             (AiITP:PromptContext
+               $target $statement $definition-texts $fact-texts))
+            ($other (AiITP:Fault $target context-identity $reply))))
+         (AiITP:Fault $target context-shape $reply)))
       ($other (AiITP:Fault $target context-shape $reply)))))
 (= (ai-math:itp-context-names $context $index $names $definitions)
    (if (== (get-metatype $names) Expression)
@@ -573,14 +575,14 @@
                          (ai-math:itp-context-names $context $index $definitions true)))
              (let (AiITP:Budget $wall $heartbeats $recursion) $budget
                (ai-math:itp-send $context $target $index (AiITP:ContextRequest $premises $definitions)
-                 (json-stringify (JsonObject
-                   ((JsonPair "schema" (JsonString "ai-math.itp.v1"))
-                    (JsonPair "target" (JsonString $target)) (JsonPair "operation" (JsonString "context"))
-                    (JsonPair "profile" (JsonString (ai-math:itp-profile-name $context)))
-                    (JsonPair "heartbeats" (JsonNumber (str:number->string $heartbeats)))
-                    (JsonPair "recursion" (JsonNumber (str:number->string $recursion)))
-                    (JsonPair "premises" (JsonArray (map-atom $premises $name (JsonString $name))))
-                    (JsonPair "definitions" (JsonArray (map-atom $definitions $name (JsonString $name))))))) $wall))
+                 (json:stringify (JsonObject
+                   ((JsonPair "schema" "ai-math.itp.v1")
+                    (JsonPair "target" $target) (JsonPair "operation" "context")
+                    (JsonPair "profile" (ai-math:itp-profile-name $context))
+                    (JsonPair "heartbeats" $heartbeats)
+                    (JsonPair "recursion" $recursion)
+                    (JsonPair "premises" (JsonArray (map-atom $premises $name $name)))
+                    (JsonPair "definitions" (JsonArray (map-atom $definitions $name $name)))))) $wall))
              (AiITP:Rejected $target invalid-prompt-context ())))
           ($other (AiITP:Rejected $target unknown-theorem $other)))))
       ($other $other))))

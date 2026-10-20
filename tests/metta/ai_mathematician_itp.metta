@@ -24,12 +24,12 @@
 ; These are transport controls, not manufactured proof certificates.
 !(test
    (case (ai-math:itp-decode (itp-example:context) "orIL" 1 "check"
-      (json-parse "{\"schema\":\"wrong\",\"target\":\"orIL\",\"kind\":\"checked\",\"used\":[],\"axioms\":[]}"))
+      (json:parse "{\"schema\":\"wrong\",\"target\":\"orIL\",\"kind\":\"checked\",\"used\":[],\"axioms\":[]}"))
      (((AiITP:Fault $target $reason $evidence) RejectedTransport) ($other Wrong)))
    RejectedTransport)
 !(test
    (case (ai-math:itp-decode (itp-example:context) "orIL" 1 "check"
-      (json-parse "{\"schema\":\"ai-math.itp.v1\",\"target\":\"orIL\",\"kind\":\"checked\",\"kind\":\"checked\",\"used\":[],\"axioms\":[]}"))
+      (json:parse "{\"schema\":\"ai-math.itp.v1\",\"target\":\"orIL\",\"kind\":\"checked\",\"kind\":\"checked\",\"used\":[],\"axioms\":[]}"))
      (((AiITP:Fault $target $reason $evidence) RejectedDuplicate) ($other Wrong)))
    RejectedDuplicate)
 
@@ -50,18 +50,18 @@
 !(test
    (ai-math:itp-signature
      (ai-math:itp-statements-ready (itp-example:context)
-       (JsonArray ((JsonArray ((JsonString "orIL") (JsonString "P -> or P Q")))
-                   (JsonArray ((JsonString "later") (JsonString "Q")))))) "orIL")
+       (JsonArray ((JsonArray ("orIL" "P -> or P Q"))
+                   (JsonArray ("later" "Q"))))) "orIL")
    "P -> or P Q")
 !(test
    (ai-math:itp-signature
      (ai-math:itp-statements-ready (itp-example:context)
-       (JsonArray ((JsonArray ((JsonString "later") (JsonString "Q")))
-                   (JsonArray ((JsonString "orIL") (JsonString "P -> or P Q")))))) "later")
+       (JsonArray ((JsonArray ("later" "Q"))
+                   (JsonArray ("orIL" "P -> or P Q"))))) "later")
    "Q")
 !(test
    (case (ai-math:itp-statements-ready (itp-example:context)
-      (JsonArray ((JsonArray ((JsonString "orIL") (JsonString "P -> or P Q"))))))
+      (JsonArray ((JsonArray ("orIL" "P -> or P Q")))))
      (((AiITP:Fault $target $reason $data) IncompleteDomain) ($other Wrong)))
    IncompleteDomain)
 

@@ -133,9 +133,9 @@ def main():
 """, output)
     assert actual[:3] == ["AiRun:Reused", "orIL", "rechecked"], actual
     refreshed = {row[1]: row[2] for row in actual[3][1]}
-    assert refreshed["used"] != ["JsonArray", [["JsonString", "Megalodon.orIL"]]], refreshed["used"]
-    assert refreshed["axioms"] != ["JsonArray", [["JsonString", "sorryAx"]]], refreshed["axioms"]
-    assert refreshed["resume_check"] == ["JsonString", "kernel-and-source-order"]
+    assert refreshed["used"] != ["JsonArray", ["Megalodon.orIL"]], refreshed["used"]
+    assert refreshed["axioms"] != ["JsonArray", ["sorryAx"]], refreshed["axioms"]
+    assert refreshed["resume_check"] == "kernel-and-source-order"
     checks += 4
     forged = dict(rows[1], tactic="exact orIL")
     with log.open("a") as stream:
@@ -189,10 +189,10 @@ def main():
     fields = actual[10]
     assert fields[0] == "AiRun:TraceFields" and len(fields[1]) == len(fields[2]) == 1, fields
     ref = {row[1]: row[2] for row in fields[1][0][1]}
-    assert ref["schema"] == ["JsonString", "ai-math.tstp.v1"], ref
-    assert ref["problem_sha256"] == ["JsonString", "problem"], ref
+    assert ref["schema"] == "ai-math.tstp.v1", ref
+    assert ref["problem_sha256"] == "problem", ref
     fault = {row[1]: row[2] for row in fields[2][0][1]}
-    assert fault["slice"] == ["JsonNumber", "16"] and "write-failed" in fault["detail"][1], fault
+    assert fault["slice"] == "16" and "write-failed" in fault["detail"], fault
     assert actual[11] == actual[12] == [["trace-policy", "SuccessfulSolverEvidenceV1"],
                                         ["definition-depth", "3"]], actual[11:13]
     checks += 16
@@ -218,17 +218,17 @@ def main():
         actual = execute(binary, setup + f"""
    )
    ((ai-math:run-reusable $context
-      (JsonObject ((JsonPair "outcome" (JsonString "proved"))
-                   (JsonPair "goal" (JsonString "orIL"))
-                   (JsonPair "proof_profile" (JsonString "duper"))
-                   (JsonPair "tactic" (JsonString {quote(script)}))))
+      (JsonObject ((JsonPair "outcome" "proved")
+                   (JsonPair "goal" "orIL")
+                   (JsonPair "proof_profile" "duper")
+                   (JsonPair "tactic" {quote(script)})))
       (AiITP:Budget 30000 1000000 8000))
-    (json-object-get (ai-math:run-result "run" 0
+    (json:get (ai-math:run-result "run" 0
       (AiProver:Result "orIL" 0 (AiProver:Hints (()) () () "" ()) ()
         (AiProver:Proved duper 0 "duper#1" {quote(script)} () ()))) "proof_profile")))
 """, output)
         assert actual[0][0] == "AiRun:Rechecked", actual[0]
-        assert actual[1] == ["JsonString", "duper"], actual[1]
+        assert actual[1] == "duper", actual[1]
         checks += 2
     print(f"AiMathematicianExperiment {checks} 0")
 

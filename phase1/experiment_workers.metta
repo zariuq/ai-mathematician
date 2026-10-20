@@ -2,23 +2,25 @@
 ; Configuration and worker requests are JSON data, never executable syntax.
 
 (= (ai-math:workers-value $row $key $default)
-   (case (json-object-get $row $key)
-     ((JsonNull $default) ((JsonString $text) $text)
-      ((JsonNumber $text) (str:string->number $text))
-      ((JsonBool $value) $value) ($other AiWorkers:InvalidValue))))
+   (let $value (json:get $row $key)
+     (if (== $value JsonNull) $default
+       (if (or (== (get-type $value) String)
+               (or (== (get-type $value) Number)
+                   (or (== $value true) (== $value false))))
+         $value AiWorkers:InvalidValue))))
 (= (ai-math:workers-strings $value)
    (case $value
      (((JsonArray $items)
        (foldl-atom $items true $ok $item
-         (and $ok (case $item (((JsonString $text) true) ($other false))))))
+         (and $ok (== (get-type $item) String))))
       ($other false))))
 (= (ai-math:workers-config-valid $row)
    (and (ai-math:run-unique-object $row)
-     (and (foldl-atom (ai-math:itp-json-keys (json-object-pairs $row)) true $ok $key
+     (and (foldl-atom (ai-math:itp-json-keys (json:object-pairs $row)) true $ok $key
             (and $ok (ai-math:contains
               ("corpus" "output" "workers" "mode" "profile" "stride" "skip" "limit"
                "goals" "lean" "vampire" "trace" "worker_timeout_ms" "slices"
-               "vampire_seconds" "induction" "use_duper" "lean_stages" "itp_runtime") $key)))
+               "vampire_seconds" "induction" "smt" "use_duper" "lean_stages" "itp_runtime") $key)))
        (and (foldl-atom ("corpus" "output") true $ok $key
               (let $text (ai-math:workers-value $row $key AiMissing)
                 (and $ok (if (== (get-type $text) String) (> (str:byte-length $text) 0) false))))
@@ -35,22 +37,23 @@
             (system:getenv-or-default "CETTA_ITP_RUNTIME" "interpreted")))
     (and (foldl-atom ("lean" "vampire") true $ok $key
           (and $ok (== (get-type (ai-math:workers-value $row $key "")) String)))
-     (and (foldl-atom ("trace" "induction") true $ok $key
+     (and (foldl-atom ("trace" "induction" "smt") true $ok $key
             (let $value (ai-math:workers-value $row $key false)
               (and $ok (or (== $value true) (== $value false)))))
        (and (ai-math:contains (true false "Auto") (ai-math:workers-value $row "use_duper" "Auto"))
-         (and (case (json-object-get $row "goals")
+         (and (case (json:get $row "goals")
                 ((JsonNull true) ($names (ai-math:workers-strings $names))))
-           (and (case (json-object-get $row "slices")
+           (and (case (json:get $row "slices")
                   ((JsonNull true) ((JsonArray $slice-items)
                     (foldl-atom $slice-items true $slice-ok $slice-item
-                      (and $slice-ok (case $slice-item (((JsonNumber $n) (ai-math:itp-natural (str:string->number $n)))
-                                            ($bad-slice false)))))) ($bad-slices false)))
-             (case (json-object-get $row "lean_stages")
+                      (and $slice-ok (ai-math:itp-natural $slice-item))))
+                   ($bad-slices false)))
+             (case (json:get $row "lean_stages")
                ((JsonNull true) ((JsonArray $stage-items)
                  (foldl-atom $stage-items true $stage-ok $stage-item
-                   (and $stage-ok (case $stage-item (((JsonString $stage)
-                     (ai-math:contains ("base" "followup" "apply" "duper") $stage)) ($bad-stage false))))))
+                   (and $stage-ok
+                     (and (== (get-type $stage-item) String)
+                       (ai-math:contains ("base" "followup" "apply" "apply2" "duper") $stage-item)))))
                 ($bad-stages false))))))))))
 (= (ai-math:workers-dirname $path)
    (let $directory (str:join "/" (list:reverse (cdr-atom (list:reverse (str:split "/" $path)))))
@@ -82,7 +85,7 @@
        (AiWorkers:Unfinished cancelled $termination))
       ($other (AiWorkers:Fault process $observation)))))
 (= (ai-math:workers-config $path $root)
-   (let $row (json-parse (fs:read-text $path))
+   (let $row (json:parse (fs:read-text $path))
      (if (ai-math:workers-config-valid $row)
        (let* (($directory (ai-math:workers-dirname (fs:canonical-path $path)))
               ($resolved (fs:try-canonical-path (ai-math:workers-path $directory
@@ -103,18 +106,22 @@
    (let* (($base (ai-math:prover-profile-options
                     (str:string->symbol (ai-math:workers-value $row "profile" "PythonV4"))))
           ($overrides (collapse (superpose
-            ((case (json-object-get $row "slices")
-               (((JsonArray $values) (slices (map-atom $values $v (str:string->number (json-number-value $v)))))
+            ((case (json:get $row "slices")
+               (((JsonArray $values) (slices $values))
                 ($other (empty))))
-             (case (json-object-get $row "lean_stages")
-               (((JsonArray $values) (lean-stages (map-atom $values $v (str:string->symbol (json-string-value $v)))))
+             (case (json:get $row "lean_stages")
+               (((JsonArray $values) (lean-stages (map-atom $values $v (str:string->symbol $v))))
                 ($other (empty))))
-             (case (json-object-get $row "vampire_seconds")
-               (((JsonNumber $n) (vampire-seconds (str:string->number $n))) ($other (empty))))
-             (case (json-object-get $row "induction")
-               (((JsonBool $value) (induction $value)) ($other (empty))))
-             (case (json-object-get $row "use_duper")
-               (((JsonBool $value) (use-duper $value)) ((JsonString "Auto") (use-duper Auto)) ($other (empty))))
+             (case (json:get $row "vampire_seconds")
+               (($n (if (ai-math:itp-natural $n) (vampire-seconds $n) (empty))) ($other (empty))))
+             (case (json:get $row "induction")
+               (($value (if (or (== $value true) (== $value false)) (induction $value) (empty))) ($other (empty))))
+             (case (json:get $row "smt")
+               (($value (if (or (== $value true) (== $value false)) (smt $value) (empty))) ($other (empty))))
+             (case (json:get $row "use_duper")
+               (("Auto" (use-duper Auto))
+                ($value (if (or (== $value true) (== $value false)) (use-duper $value) (empty)))
+                ($other (empty))))
              (if (ai-math:workers-value $row "trace" false)
                (trace-directory $directory) (empty)))))))
      (union-atom $overrides
@@ -126,10 +133,10 @@
       ($items
        (let* (($all (map-atom (filter-atom $items $d (== (index-atom $d 2) THM)) $d
                        ((index-atom $d 1) (index-atom $d 3))))
-              ($selected (case (json-object-get $row "goals")
+              ($selected (case (json:get $row "goals")
                            ((JsonNull $all)
                             ((JsonArray $names)
-                             (let $wanted (map-atom $names $name (json-string-value $name))
+                             (let $wanted (map-atom $names $name $name)
                                (if (and (== (size-atom $wanted) (size-atom (unique-atom $wanted)))
                                         (== (subtraction-atom $wanted (map-atom $all $entry (index-atom $entry 1))) ()))
                                  (filter-atom $all $entry (ai-math:contains $wanted (index-atom $entry 1)))
@@ -157,11 +164,11 @@
      (list:reverse $out)))
 (= (ai-math:workers-manifest $key $targets $count)
    (JsonObject
-     ((JsonPair "schema" (JsonString "ai-math.workers.v1"))
-      (JsonPair "run" (JsonString $key))
-      (JsonPair "workers" (JsonNumber (str:number->string $count)))
+     ((JsonPair "schema" "ai-math.workers.v1")
+      (JsonPair "run" $key)
+      (JsonPair "workers" $count)
       (JsonPair "targets" (JsonArray (map-atom $targets $target
-        (JsonArray ((JsonNumber (str:number->string (index-atom $target 0))) (JsonString (index-atom $target 1))))))))))
+        (JsonArray ((index-atom $target 0) (index-atom $target 1)))))))))
 (= (ai-math:workers-open $config $manifest)
    (let (AiWorkers:Config $row $root $corpus $output $binary $lean $vampire) $config
      (let $path (str:concat $output "/manifest.json")
@@ -169,10 +176,10 @@
          (if (fs:exists $output) (AiWorkers:Request existing-output $output)
            (case (ai-math:workers-process-text (proc:run ("mkdir" "--" $output) ()))
              (((AiWorkers:Text $text)
-               (case (ai-math:run-publish-file $path (str:concat (json-stringify $manifest) "\n"))
+               (case (ai-math:run-publish-file $path (str:concat (json:stringify $manifest) "\n"))
                  ((() AiWorkers:Ready) ($fault (AiWorkers:Fault manifest-write $fault)))))
               ($other $other))))
-         (if (== (json-parse (fs:read-text $path)) $manifest) AiWorkers:Ready
+         (if (== (json:parse (fs:read-text $path)) $manifest) AiWorkers:Ready
            (AiWorkers:Request incompatible-manifest $path))))))
 (= (ai-math:workers-job $config $targets $worker)
    (let (AiWorkers:Config $row $root $corpus $output $binary $lean $vampire) $config
@@ -184,15 +191,15 @@
      (let (AiWorkers:Job $id $targets $journal $snapshot $trace) $job
        (let (AiRun:Identity $key $descriptor) $identity
          (JsonObject
-           ((JsonPair "schema" (JsonString "ai-math.worker-request.v1"))
-            (JsonPair "config" $row) (JsonPair "corpus" (JsonString $corpus))
-            (JsonPair "lean" (JsonString $lean)) (JsonPair "vampire" (JsonString $vampire))
-            (JsonPair "build" (JsonString (index-atom (index-atom $descriptor 6) 3)))
-            (JsonPair "run" (JsonString $key)) (JsonPair "worker" (JsonNumber (str:number->string $id)))
+           ((JsonPair "schema" "ai-math.worker-request.v1")
+            (JsonPair "config" $row) (JsonPair "corpus" $corpus)
+            (JsonPair "lean" $lean) (JsonPair "vampire" $vampire)
+            (JsonPair "build" (index-atom (index-atom $descriptor 6) 3))
+            (JsonPair "run" $key) (JsonPair "worker" $id)
             (JsonPair "targets" (JsonArray (map-atom $targets $target
-              (JsonArray ((JsonNumber (str:number->string (index-atom $target 0))) (JsonString (index-atom $target 1)))))))
-            (JsonPair "journal" (JsonString $journal)) (JsonPair "snapshot" (JsonString $snapshot))
-            (JsonPair "trace_directory" (JsonString $trace))))))))
+              (JsonArray ((index-atom $target 0) (index-atom $target 1))))))
+            (JsonPair "journal" $journal) (JsonPair "snapshot" $snapshot)
+            (JsonPair "trace_directory" $trace)))))))
 (= (ai-math:workers-start $config $identity $job)
    (let (AiWorkers:Config $row $root $corpus $output $binary $lean $vampire) $config
      (AiWorkers:Active $job
@@ -202,7 +209,7 @@
                         (system:getenv-or-default "CETTA_ITP_RUNTIME" "interpreted")))
                     $binary "--no-results" "--lang" "petta@1.0.6"
                     (str:concat $root "/phase1/experiment_worker_main.metta"))
-         ((stdin (json-stringify (ai-math:workers-request $config $identity $job)))
+         ((lifetime owner) (stdin (json:stringify (ai-math:workers-request $config $identity $job)))
           (timeout-ms (ai-math:workers-value $row "worker_timeout_ms" 0)))))))
 (= (ai-math:workers-start-all $config $identity $targets $count $worker)
    (if (== $worker $count) ()
@@ -213,19 +220,19 @@
          (ai-math:workers-start-all $config $identity $targets $count (+ $worker 1))))))
 (= (ai-math:workers-json-lines $text)
    (map-atom (filter-atom (str:split "\n" $text) $line (not (== (str:trim $line) "")))
-     $line (json-parse $line)))
+     $line (json:parse $line)))
 (= (ai-math:workers-snapshot-valid $rows $identity $targets)
    (let (AiRun:Identity $key $descriptor) $identity
      (if (== $rows ()) false
        (and (== (car-atom $rows) (ai-math:run-header $identity))
          (let $results (cdr-atom $rows)
            (and (== (size-atom $results) (size-atom $targets))
-             (and (== (size-atom (unique-atom (map-atom $results $r (json-object-get $r "goal"))))
+             (and (== (size-atom (unique-atom (map-atom $results $r (json:get $r "goal"))))
                       (size-atom $targets))
                (foldl-atom $results true $ok $result
                  (and $ok (and (ai-math:run-unique-object $result)
-                   (and (== (json-object-get $result "schema") (JsonString "ai-math.result.v1"))
-                     (and (== (json-object-get $result "run") (JsonString $key))
+                   (and (== (json:get $result "schema") "ai-math.result.v1")
+                     (and (== (json:get $result "run") $key)
                        (and (ai-math:contains ("proved" "not-proved" "unfinished" "fault")
                               (ai-math:workers-value $result "outcome" AiMissing))
                          (ai-math:contains $targets
@@ -235,14 +242,14 @@
    (let (AiWorkers:Job $id $targets $journal $snapshot $trace) $job
      (case (ai-math:workers-process-text $observation)
        (((AiWorkers:Text $text)
-         (let* (($reply (json-parse $text)) ($data (fs:read-text $snapshot)))
+         (let* (($reply (json:parse $text)) ($data (fs:read-text $snapshot)))
            (if (and (ai-math:run-unique-object $reply)
-                (and (== (json-object-get $reply "schema") (JsonString "ai-math.worker.v1"))
-                  (and (== (json-object-get $reply "worker") (JsonNumber (str:number->string $id)))
-                    (and (== (json-object-get $reply "run") (JsonString (index-atom $identity 1)))
+                (and (== (json:get $reply "schema") "ai-math.worker.v1")
+                  (and (== (json:get $reply "worker") $id)
+                    (and (== (json:get $reply "run") (index-atom $identity 1))
                       (== (get-type $data) String)))))
              (let $rows (ai-math:workers-json-lines $data)
-               (if (and (== (json-object-get $reply "snapshot_sha256") (JsonString (str:sha256 $data)))
+               (if (and (== (json:get $reply "snapshot_sha256") (str:sha256 $data))
                         (ai-math:workers-snapshot-valid $rows $identity $targets))
                  (AiWorkers:Done $id (cdr-atom $rows))
                  (AiWorkers:Fault invalid-snapshot $id)))
@@ -276,13 +283,13 @@
           ($ordered (map-atom (sort-atom (map-atom $rows $row
                           ((ai-math:workers-value $row "index" -1) $row))) $entry (index-atom $entry 1)))
           ($data (str:concat (str:join "\n" (map-atom (cons-atom (ai-math:run-header $identity) $ordered)
-                                                   $row (json-stringify $row))) "\n")))
+                                                   $row (json:stringify $row))) "\n")))
      (if (ai-math:workers-snapshot-valid (cons-atom (ai-math:run-header $identity) $ordered) $identity $targets)
        (case (ai-math:run-publish-file (str:concat (index-atom $config 4) "/joined.jsonl") $data)
          ((() (AiWorkers:Summary (index-atom $identity 1) (size-atom $ordered)
                   (map-atom ("proved" "not-proved" "unfinished" "fault") $kind
                     ($kind (size-atom (filter-atom $ordered $row
-                      (== (json-object-get $row "outcome") (JsonString $kind))))))
+                      (== (json:get $row "outcome") $kind)))))
                   (str:concat (index-atom $config 4) "/joined.jsonl")))
           ($fault (AiWorkers:Fault join-write $fault))))
        (AiWorkers:Fault incomplete-join (size-atom $ordered)))))
@@ -338,29 +345,29 @@
      (let* (($rows (map-atom $targets $entry (ai-math:get $store (index-atom $entry 1) AiMissing)))
             ($header (car-atom (ai-math:workers-json-lines (fs:read-text $journal))))
             ($data (str:concat (str:join "\n" (map-atom (cons-atom $header $rows)
-                                                 $row (json-stringify $row))) "\n")))
+                                                 $row (json:stringify $row))) "\n")))
        (case (ai-math:run-publish-file $path $data)
          ((() (AiWorkers:Snapshot (str:sha256 $data)))
           ($fault (AiWorkers:Fault snapshot-write $fault)))))))
 (= (ai-math:worker-run $request $root)
-   (let* (($row (json-object-get $request "config"))
+   (let* (($row (json:get $request "config"))
           ($corpus (ai-math:workers-value $request "corpus" AiMissing))
           ($lean (ai-math:workers-value $request "lean" AiMissing))
           ($vampire (ai-math:workers-value $request "vampire" AiMissing))
           ($trace (ai-math:workers-value $request "trace_directory" AiMissing))
           ($journal (ai-math:workers-value $request "journal" AiMissing))
-          ($targets (map-atom (json-array-items (json-object-get $request "targets")) $item
-                       ((str:string->number (json-number-value (index-atom (json-array-items $item) 0)))
-                        (json-string-value (index-atom (json-array-items $item) 1)))))
+          ($targets (map-atom (json:array-items (json:get $request "targets")) $item
+                       ((index-atom (json:array-items $item) 0)
+                        (index-atom (json:array-items $item) 1))))
           ($options (ai-math:workers-options $row $trace))
           ($context (ai-math:prover-with (ai-math:load-library $corpus) $corpus $root $lean $vampire $options))
           ($identity (ai-math:run-descriptor $root $corpus (ai-math:run-effective-options $root $options)
                         (AiRun:Toolchain $lean $vampire (ai-math:workers-value $request "build" AiMissing)
                           (AiRun:ITPRuntime (ai-math:workers-value $row "itp_runtime"
                             (system:getenv-or-default "CETTA_ITP_RUNTIME" "interpreted")))))))
-     (if (and (== (json-object-get $request "schema") (JsonString "ai-math.worker-request.v1"))
+     (if (and (== (json:get $request "schema") "ai-math.worker-request.v1")
               (and (ai-math:workers-config-valid $row)
-                (== (json-object-get $request "run") (JsonString (index-atom $identity 1)))))
+                (== (json:get $request "run") (index-atom $identity 1))))
        (let $ready (if (ai-math:workers-value $row "trace" false)
                      (ai-math:workers-process-text (proc:run ("mkdir" "-p" "--" $trace) ()))
                      (AiWorkers:Text ""))
@@ -376,10 +383,10 @@
                              (ai-math:workers-value $request "snapshot" AiMissing))
                        (((AiWorkers:Snapshot $hash)
                          (JsonObject
-                           ((JsonPair "schema" (JsonString "ai-math.worker.v1"))
-                            (JsonPair "run" (JsonString $key))
-                            (JsonPair "worker" (json-object-get $request "worker"))
-                            (JsonPair "snapshot_sha256" (JsonString $hash)))))
+                           ((JsonPair "schema" "ai-math.worker.v1")
+                            (JsonPair "run" $key)
+                            (JsonPair "worker" (json:get $request "worker"))
+                            (JsonPair "snapshot_sha256" $hash))))
                         ($other $other))))
                     ($other $other))))))
             ($other $other))))

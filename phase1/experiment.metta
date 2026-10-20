@@ -14,10 +14,11 @@
 
 (= (ai-math:run-source-files)
    ("phase1/library.metta" "phase1/search.metta" "phase1/atp.metta" "phase1/vampire_output.metta"
-    "phase1/itp.metta" "phase1/proof_strategy.metta" "phase1/induction.metta"
+    "phase1/itp.metta" "phase1/proof_strategy.metta" "phase1/induction.metta" "phase1/smt_bridge.metta"
+    "formats/SMTLibExport.module"
     "phase1/induction_prover.metta" "phase1/prover.metta" "phase1/experiment.metta"
     "phase1/itp_driver.lean" "phase1/itp_guard.lean" "lib/CettaITPGuard.lean"
-    "lib/CettaITP.lean" "lib/CettaProofTactics.lean" "lib/Bridge.lean" "lib/MegLib.lean"
+    "lib/CettaITP.lean" "lib/CettaProposalView.lean" "lib/CettaProofTactics.lean" "lib/Bridge.lean" "lib/MegLib.lean"
     "phase1/experiment_workers.metta" "phase1/experiment_worker_main.metta"
     "phase1/workers_main.metta" "phase1/workers_driver.metta" "lean-toolchain"
     "tools/duper-env/lakefile.toml" "tools/duper-env/lake-manifest.json"
@@ -38,8 +39,8 @@
          (car-atom $failed))
        (AiRun:Fault corpus-read $corpus-text))))
 (= (ai-math:run-header (AiRun:Identity $key $descriptor))
-   (JsonObject ((JsonPair "schema" (JsonString "ai-math.run.v1"))
-     (JsonPair "run" (JsonString $key)) (JsonPair "descriptor" (JsonString (repr $descriptor))))))
+   (JsonObject ((JsonPair "schema" "ai-math.run.v1")
+     (JsonPair "run" $key) (JsonPair "descriptor" (repr $descriptor)))))
 (= (ai-math:run-outcome $outcome)
    (case $outcome
      (((AiProver:Proved $s $o $l $t $u $a) "proved")
@@ -48,27 +49,29 @@
       ($other "fault"))))
 (= (ai-math:run-trace-field $slice)
    (case $slice
-     (((AiProver:Slice $k
+     (((AiProver:Slice $k (AiATP:SMTAdvice $advice) $skipped $unexpanded)
+       (ai-math:run-trace-field (AiProver:Slice $k $advice $skipped $unexpanded)))
+      ((AiProver:Slice $k
          (AiATP:ArchivedAdvice $advice
            (AiATP:TraceRef $schema $goal $same-k
-             (AiATP:TraceObject Problem $problem-digest $problem-bytes)
+             (AiATP:TraceObject $problem-kind $problem-digest $problem-bytes)
              (AiATP:TraceObject Solver $solver-digest $solver-bytes) $parsed-digest))
          $skipped $unexpanded)
        (AiRun:TraceReference
          (JsonObject
-           ((JsonPair "schema" (JsonString $schema))
-            (JsonPair "goal" (JsonString $goal))
-            (JsonPair "slice" (JsonNumber (str:number->string $same-k)))
-            (JsonPair "problem_sha256" (JsonString $problem-digest))
-            (JsonPair "problem_bytes" (JsonNumber (str:number->string $problem-bytes)))
-            (JsonPair "solver_sha256" (JsonString $solver-digest))
-            (JsonPair "solver_bytes" (JsonNumber (str:number->string $solver-bytes)))
-            (JsonPair "parsed_sha256" (JsonString $parsed-digest))))))
+           ((JsonPair "schema" $schema)
+            (JsonPair "goal" $goal)
+            (JsonPair "slice" $same-k)
+            (JsonPair "problem_sha256" $problem-digest)
+            (JsonPair "problem_bytes" $problem-bytes)
+            (JsonPair "solver_sha256" $solver-digest)
+            (JsonPair "solver_bytes" $solver-bytes)
+            (JsonPair "parsed_sha256" $parsed-digest)))))
       ((AiProver:Slice $k (AiATP:TraceFailure $advice $fault) $skipped $unexpanded)
        (AiRun:TraceFault
          (JsonObject
-           ((JsonPair "slice" (JsonNumber (str:number->string $k)))
-            (JsonPair "detail" (JsonString (repr $fault)))))))
+           ((JsonPair "slice" $k)
+            (JsonPair "detail" (repr $fault))))))
       ($other AiRun:NoTrace))))
 (= (ai-math:run-trace-fields $trace)
    (let (AiRun:TraceFields $references $faults)
@@ -89,25 +92,25 @@
            (let (AiRun:TraceFields $trace-references $trace-faults)
              (ai-math:run-trace-fields $trace)
            (JsonObject
-             ((JsonPair "schema" (JsonString "ai-math.result.v1"))
-              (JsonPair "run" (JsonString $key)) (JsonPair "goal" (JsonString $name))
-              (JsonPair "index" (JsonNumber (str:number->string $index)))
-              (JsonPair "outcome" (JsonString (ai-math:run-outcome $outcome)))
-              (JsonPair "proved_by" (if (== $label AiRun:NoClaim) JsonNull (JsonString $label)))
-              (JsonPair "tactic" (if (== $tactic AiRun:NoClaim) JsonNull (JsonString $tactic)))
-              (JsonPair "proof_profile" (if (== $tactic AiRun:NoClaim) JsonNull (JsonString $proof-profile)))
-              (JsonPair "used" (JsonArray (map-atom $used $item (JsonString $item))))
-              (JsonPair "axioms" (JsonArray (map-atom $axioms $item (JsonString $item))))
-              (JsonPair "vampire" (JsonString $status))
-              (JsonPair "premises" (JsonArray (map-atom (car-atom $sets) $item (JsonString $item))))
+             ((JsonPair "schema" "ai-math.result.v1")
+              (JsonPair "run" $key) (JsonPair "goal" $name)
+              (JsonPair "index" $index)
+              (JsonPair "outcome" (ai-math:run-outcome $outcome))
+              (JsonPair "proved_by" (if (== $label AiRun:NoClaim) JsonNull $label))
+              (JsonPair "tactic" (if (== $tactic AiRun:NoClaim) JsonNull $tactic))
+              (JsonPair "proof_profile" (if (== $tactic AiRun:NoClaim) JsonNull $proof-profile))
+              (JsonPair "used" (JsonArray (map-atom $used $item $item)))
+              (JsonPair "axioms" (JsonArray (map-atom $axioms $item $item)))
+              (JsonPair "vampire" $status)
+              (JsonPair "premises" (JsonArray (map-atom (car-atom $sets) $item $item)))
               (JsonPair "premise_sets" (JsonArray (map-atom $sets $set
-                (JsonArray (map-atom $set $item (JsonString $item))))))
-              (JsonPair "defs" (JsonArray (map-atom $defs $item (JsonString $item))))
-              (JsonPair "goal_defs" (JsonArray (map-atom $gdefs $item (JsonString $item))))
+                (JsonArray (map-atom $set $item $item)))))
+              (JsonPair "defs" (JsonArray (map-atom $defs $item $item)))
+              (JsonPair "goal_defs" (JsonArray (map-atom $gdefs $item $item)))
               (JsonPair "solver_traces" (JsonArray $trace-references))
               (JsonPair "solver_trace_faults" (JsonArray $trace-faults))
-              (JsonPair "nanoseconds" (JsonNumber (str:number->string $nanoseconds)))
-              (JsonPair "evidence" (JsonString (repr $result)))))))))
+              (JsonPair "nanoseconds" $nanoseconds)
+              (JsonPair "evidence" (repr $result))))))))
       ($other (AiRun:Fault invalid-controller-result $other)))))
 (= (ai-math:run-unique-object $row)
    (case $row
@@ -117,36 +120,41 @@
            (foldl-atom $keys true $ok $key (and $ok (== (get-type $key) String))))))
       ($other false))))
 (= (ai-math:run-goal-valid (AiProver $search $thf (AiITP $catalog $root $lean $profile) $vampire $options) $row)
-   (case ((json-object-get $row "goal") (json-object-get $row "index"))
-     ((((JsonString $name) (JsonNumber $ordinal))
-       (case (ai-math:get $catalog $name AiMissing)
-         (((AiITP:Declaration $i THM) (== $ordinal (str:number->string $i))) ($other false))))
+   (case ((json:get $row "goal") (json:get $row "index"))
+     ((($name $ordinal)
+       (if (and (== (get-type $name) String)
+                (ai-math:itp-natural $ordinal))
+         (case (ai-math:get $catalog $name AiMissing)
+           (((AiITP:Declaration $i THM) (== $ordinal $i)) ($other false)))
+         false))
       ($other false))))
 (= (ai-math:run-record-valid $context $key $row)
    (and (ai-math:run-unique-object $row)
-     (and (== (json-object-get $row "schema") (JsonString "ai-math.result.v1"))
-       (and (== (json-object-get $row "run") (JsonString $key))
+     (and (== (json:get $row "schema") "ai-math.result.v1")
+       (and (== (json:get $row "run") $key)
          (and (ai-math:run-goal-valid $context $row)
-           (case (json-object-get $row "outcome")
-             (((JsonString "proved")
-               (case ((json-object-get $row "tactic") (json-object-get $row "proved_by"))
-                 ((((JsonString $tactic) (JsonString $label))
-                   (case (json-object-get $row "proof_profile")
-                     (((JsonString $profile) (ai-math:contains ("core" "duper") $profile))
-                      ($invalid-profile false)))) ($other false))))
-              ((JsonString $kind) (ai-math:contains ("not-proved" "unfinished" "fault") $kind))
-              ($other false))))))))
+           (let $outcome (json:get $row "outcome")
+             (if (== $outcome "proved")
+               (let* (($tactic (json:get $row "tactic"))
+                      ($label (json:get $row "proved_by"))
+                      ($profile (json:get $row "proof_profile")))
+                 (and (== (get-type $tactic) String)
+                   (and (== (get-type $label) String)
+                     (and (== (get-type $profile) String)
+                          (ai-math:contains ("core" "duper") $profile)))))
+               (and (== (get-type $outcome) String)
+                    (ai-math:contains ("not-proved" "unfinished" "fault") $outcome)))))))))
 (= (ai-math:run-scan-line $context $key $store $state $line)
    (case $state
      (((AiRun:Scanned $header $issues)
        (if (== (str:trim $line) "") $state
-         (let $row (json-parse $line)
+         (let $row (json:parse $line)
            (if (and (ai-math:run-unique-object $row)
-                    (== (json-object-get $row "schema") (JsonString "ai-math.run.v1")))
-             (if (and (not $header) (== (json-object-get $row "run") (JsonString $key)))
+                    (== (json:get $row "schema") "ai-math.run.v1"))
+             (if (and (not $header) (== (json:get $row "run") $key))
                (AiRun:Scanned true $issues) (AiRun:Fault incompatible-run $row))
              (if (and $header (ai-math:run-record-valid $context $key $row))
-               (let $stored (ai-math:put $store (json-string-value (json-object-get $row "goal"))
+               (let $stored (ai-math:put $store (json:get $row "goal")
                               (AiRun:Saved $row)) $state)
                (AiRun:Scanned $header (cons-atom (AiRun:IgnoredLine (str:sha256 $line)) $issues)))))))
       ($other $state))))
@@ -169,7 +177,7 @@
          (let $store (new-space)
            (case $mode
              ((Fresh (if (fs:exists $path) (AiRun:Request existing-log $path)
-               (let $written (fs:write $path (str:concat (json-stringify
+               (let $written (fs:write $path (str:concat (json:stringify
                         (ai-math:run-header (AiRun:Identity $key $descriptor))) "\n"))
                  (if (== $written ()) (AiRun $context $path $key $store ()) (AiRun:Fault log-write $written)))))
               (Resume
@@ -189,16 +197,16 @@
        (ai-math:run-open-prepared $context $corpus $path $toolchain $mode))
       ($other $other))))
 (= (ai-math:run-reusable (AiProver $search $thf $itp $vampire $options) $row $budget)
-   (case (json-object-get $row "outcome")
-     (((JsonString "not-proved") AiRun:Completed)
-      ((JsonString "proved")
-       (case (json-object-get $row "proof_profile")
-         (((JsonString $profile)
+   (case (json:get $row "outcome")
+     (("not-proved" AiRun:Completed)
+      ("proved"
+       (case (json:get $row "proof_profile")
+         (($profile
            (if (ai-math:contains ("core" "duper") $profile)
              (case (ai-math:itp-check-with
                      (ai-math:itp-select-profile $itp (str:string->symbol $profile))
-                     (json-string-value (json-object-get $row "goal"))
-                     (json-string-value (json-object-get $row "tactic")) $budget)
+                     (json:get $row "goal")
+                     (json:get $row "tactic") $budget)
                (((AiITP:Accepted $n $used $axioms) (AiRun:Rechecked $used $axioms))
                 ($checked-other (AiRun:Retry $checked-other))))
              (AiRun:Retry invalid-proof-profile)))
@@ -207,15 +215,15 @@
 (= (ai-math:run-rechecked-row (JsonObject $fields) $used $axioms)
    (JsonObject (union-atom
      (filter-atom $fields $field (not (ai-math:contains ("used" "axioms" "resume_check") (index-atom $field 1))))
-     ((JsonPair "used" (JsonArray (map-atom $used $name (JsonString $name))))
-      (JsonPair "axioms" (JsonArray (map-atom $axioms $name (JsonString $name))))
-      (JsonPair "resume_check" (JsonString "kernel-and-source-order"))))))
+     ((JsonPair "used" (JsonArray (map-atom $used $name $name)))
+      (JsonPair "axioms" (JsonArray (map-atom $axioms $name $name)))
+      (JsonPair "resume_check" "kernel-and-source-order")))))
 (= (ai-math:run-publish (AiRun $context $path $key $store $issues) $target $row)
      (case $row
        (((JsonObject $fields)
-         (if (and (== (json-object-get $row "goal") (JsonString $target))
+         (if (and (== (json:get $row "goal") $target)
                   (ai-math:run-record-valid $context $key $row))
-           (let $written (fs:append-text $path (str:join "" ("\n" (json-stringify $row) "\n")))
+           (let $written (fs:append-text $path (str:join "" ("\n" (json:stringify $row) "\n")))
              (if (== $written ())
                (let $stored (ai-math:put $store $target $row) (AiRun:Recorded $target $row))
                (AiRun:Fault log-append ($target $written))))
@@ -267,7 +275,7 @@
        (let $rows (collapse (match $store (AiEntry $name (JsonObject $fields)) (JsonObject $fields)))
          (AiRun:Summary $key (size-atom $rows)
            (map-atom ("proved" "not-proved" "unfinished" "fault") $kind
-             ($kind (size-atom (filter-atom $rows $row (== (json-object-get $row "outcome") (JsonString $kind)))))) $issues)))
+             ($kind (size-atom (filter-atom $rows $row (== (json:get $row "outcome") $kind))))) $issues)))
       ($other $other))))
 (= (ai-math:run-step $owner $budget $state $target)
    (if (== $state AiRun:Running)

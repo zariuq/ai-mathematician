@@ -23,7 +23,12 @@ All calls go through llm.chat, so they count against the hard call cap.
 import re
 
 from itp import BRIDGE
-from llm import LeanContext, SYSTEM, chat, goal_state, _extract
+from llm import LeanContext, SYSTEM, chat, goal_state, _extract, normalize, feedback
+
+# The main prompt forbids `sorry`; here `sorry` marks a gap for the hammer.
+SKETCH_SYSTEM = SYSTEM.replace(
+    "Never use `sorry` or `admit`.",
+    "Write `sorry` for any routine step you want the automatic prover to fill.")
 
 DRAFT_SYSTEM = """You are a careful research mathematician working in
 Megalodon's higher-order set theory (sets, ordinals, naturals as von
@@ -99,15 +104,20 @@ def _trim_trailing(prover, goal, sketch, premises, defs, label, why, max_drop=3)
 
 
 def dsp_rounds(prover, goal, premises, defs, repair_rounds=1,
-               model="openai/gpt-oss-120b", log=None):
+               model="openai/gpt-oss-120b", log=None, examples=None):
     """Returns (proved_label or None, transcript). Uses at most
     2 + repair_rounds LLM calls."""
     ctx = getattr(prover, "_lean_ctx", None) or LeanContext()
     prover._lean_ctx = ctx
     sig = prover.sigs[goal.name]
     state = goal_state(prover, goal)
-    facts = ctx.show(premises) or "(none)"
-    context = (f"Statement (Lean syntax; `x1445`-style names are bound "
+    facts = ctx.show(premises, limit_chars=80000) or "(none)"
+    shots = ("Accepted Lean proofs of similar EARLIER theorems in this library "
+             "(to show its conventions):\n\n"
+             + "\n\n".join(f"theorem {n}{s} := by\n"
+                             + "\n".join("  " + l for l in sc.splitlines())
+                             for n, s, sc in examples) + "\n\n---\n\n") if examples else ""
+    context = shots + (f"Statement (Lean syntax; `x1445`-style names are bound "
                f"variables):\n{goal.name}{sig}\n\n"
                + (f"Goal after introducing hypotheses:\n{state}\n\n" if state else "")
                + f"Definitions it uses:\n{ctx.show(defs) or '(none)'}\n\n"
@@ -123,7 +133,7 @@ def dsp_rounds(prover, goal, premises, defs, repair_rounds=1,
     if log:
         log(f"    draft: {' '.join(draft.split())[:200]}")
 
-    msgs = [{"role": "system", "content": SYSTEM},
+    msgs = [{"role": "system", "content": SKETCH_SYSTEM},
             {"role": "user", "content":
              f"Prove this theorem:\n\ntheorem {goal.name}{sig} := by\n  ...\n\n"
              + context + f"\nInformal proof to follow:\n{draft}\n" + SKETCH_RULES}]
@@ -134,6 +144,7 @@ def dsp_rounds(prover, goal, premises, defs, repair_rounds=1,
             transcript.append({"stage": f"sketch{r}", "error": f"api: {type(e).__name__}"})
             break
         sketch = _extract(reply)
+        sketch = normalize(sketch)  # see llm.py: real feedback
         script, _ = fill_gaps(sketch, premises, defs)
         label = f"dsp-r{r}"
         (_, ok, why), = prover.attempt_batch(goal, [(label, script)],
@@ -152,7 +163,7 @@ def dsp_rounds(prover, goal, premises, defs, repair_rounds=1,
         msgs += [{"role": "assistant", "content": f"```lean\n{sketch}\n```"},
                  {"role": "user", "content":
                   f"After the automatic prover filled the `sorry` gaps, Lean "
-                  f"rejected the proof:\n{why}\n\nRevise the outline (you may "
+                  f"rejected the proof:\n{feedback(why, prover, goal)}\n\nRevise the outline (you may "
                   f"add intermediate `have` steps or leave more `sorry` gaps). "
                   f"Reply with one ```lean block, tactic script only."}]
     return None, transcript

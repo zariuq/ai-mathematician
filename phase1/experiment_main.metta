@@ -12,6 +12,7 @@
 !(import! &self "itp.metta")
 !(import! &self "proof_strategy.metta")
 !(import! &self "induction.metta")
+!(import! &self "smt_bridge.metta")
 !(import! &self "induction_prover.metta")
 !(import! &self "prover.metta")
 !(import! &self "experiment.metta")

@@ -25,7 +25,7 @@
           ($other (AiHTTP:Fault poll ()))))
        (let $removed (ai-math:remove $mailbox $wanted) (ai-math:http-result $saved)))))
 (= (ai-math:http-await $session $id)
-   (let* (($timer (proc:spawn ("sleep" "infinity") ()))
+   (let* (($timer (proc:spawn ("sleep" "infinity") ((lifetime owner))))
           ($result (ai-math:http-pump $session $id $timer))
           ($aborted (case $result
             (((AiHTTP:Fault $why $details) (io:cancel $id)) ($other ()))))

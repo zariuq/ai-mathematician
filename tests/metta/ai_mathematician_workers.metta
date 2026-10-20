@@ -13,22 +13,22 @@
 !(test (ai-math:prover-stages-at "." ((lean-stages (base)))) (base))
 
 !(test (ai-math:workers-config-valid
-   (json-parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\"}")) true)
+   (json:parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\"}")) true)
 !(test (ai-math:workers-config-valid
-   (json-parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"workers\":2,\"mode\":\"Resume\"}")) true)
+   (json:parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"workers\":2,\"mode\":\"Resume\"}")) true)
 !(test (ai-math:workers-config-valid
-   (json-parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"workers\":0}")) false)
+   (json:parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"workers\":0}")) false)
 !(test (ai-math:workers-config-valid
-   (json-parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"unknown\":true}")) false)
+   (json:parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"unknown\":true}")) false)
 !(test (ai-math:workers-config-valid
-   (json-parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"itp_runtime\":\"native\"}")) true)
+   (json:parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"itp_runtime\":\"native\"}")) true)
 !(test (ai-math:workers-config-valid
-   (json-parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"itp_runtime\":\"unrecognised\"}")) false)
+   (json:parse "{\"corpus\":\"corpus.sexpr\",\"output\":\"run\",\"itp_runtime\":\"unrecognised\"}")) false)
 !(test (ai-math:workers-partition ((7 "a") (11 "b") (14 "c")) 2 0) ((7 "a") (14 "c")))
 !(test (ai-math:workers-partition ((7 "a") (11 "b") (14 "c")) 2 1) ((11 "b")))
 !(test (ai-math:workers-partition () 2 0) ())
 !(test (ai-math:workers-options
-   (json-parse "{\"profile\":\"CettaFull\",\"slices\":[],\"lean_stages\":[\"base\"],\"induction\":false}") "unused")
+   (json:parse "{\"profile\":\"CettaFull\",\"slices\":[],\"lean_stages\":[\"base\"],\"induction\":false}") "unused")
    ((slices ()) (lean-stages (base)) (induction false)))
 !(test (ai-math:workers-dirname "/a path/config.json") "/a path")
 !(test (ai-math:workers-trim-directory "/a path///") "/a path")

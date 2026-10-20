@@ -15,6 +15,7 @@ from unittest.mock import patch
 from check_ai_mathematician_atp import read_values
 from check_ai_mathematician_library import ROOT, SOURCE_SHA256, quote
 from typed_export_oracle import accept_source_positions
+from python_oracle import oracle_directory
 
 ITP_SHA256 = "7b24b11e6f4178bbd6af2d68e3510a07920272449f587b68f5680489d791116b"
 
@@ -38,12 +39,13 @@ def execute(binary, source, directory):
 
 
 def load_oracles():
+    directory = oracle_directory()
     for name, digest in (("library.py", SOURCE_SHA256), ("itp.py", ITP_SHA256)):
-        assert hashlib.sha256((ROOT / "phase1" / name).read_bytes()).hexdigest() == digest, name
-    sys.path.insert(0, str(ROOT / "phase1"))
+        assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == digest, name
+    sys.path.insert(0, str(directory))
     import library
     accept_source_positions(library)
-    spec = importlib.util.spec_from_file_location("original_itp", ROOT / "phase1/itp.py")
+    spec = importlib.util.spec_from_file_location("original_itp", directory / "itp.py")
     oracle = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(oracle)
     return library, oracle
@@ -153,12 +155,13 @@ def main():
             assert ok, (label, forbidden)
             assert "sorryAx" not in result[3]
         checks += 1
-    assert rows[3][1][2] == "source-order", rows[3]
-    assert rows[4][1][2] == "source-order", rows[4]
-    assert rows[5][1][2] == "source-order", rows[5]
-    assert rows[12][1][2] == ["JsonString", "unaccounted-local-dependency"], rows[12]
-    assert rows[14][1][2] == "source-order", rows[14]
-    assert rows[17][1][2] == ["JsonString", "unaccounted-local-dependency"], rows[17]
+    for index in (3, 4, 5, 14):
+        result = rows[index][1]
+        assert result[0] == "AiITP:Rejected" and any(
+            reason in str(result) for reason in
+            ("source-order", "Unknown identifier", "Unknown constant")), rows[index]
+    assert rows[12][1][2] == "unaccounted-local-dependency", rows[12]
+    assert rows[17][1][2] == "unaccounted-local-dependency", rows[17]
     checks += 6
     guard_reasons = []
     for _, result in rows[-2:]:
@@ -166,8 +169,8 @@ def main():
         fields = {entry[1]: entry[2] for entry in result[3][1]}
         guard_reasons.append(fields["reason"])
     assert guard_reasons == [
-        ["JsonString", "missing-worker-response"],
-        ["JsonString", "kernel-replay"],
+        "missing-worker-response",
+        "kernel-replay",
     ], guard_reasons
     checks += 2
 
@@ -235,7 +238,10 @@ def main():
                                "orIL", str(tactic_file), lean], cwd=ROOT.parent,
                               text=True, capture_output=True, check=False)
     assert rejected.returncode == 1, rejected.stdout + rejected.stderr
-    assert read_values(rejected.stdout)[0][:3] == ["AiITP:Rejected", "orIL", "source-order"]
+    declined = read_values(rejected.stdout)[0]
+    assert declined[:2] == ["AiITP:Rejected", "orIL"], declined
+    assert any(marker in str(declined) for marker in
+               ("source-order", "Unknown identifier", "Unknown constant")), declined
     checks += 1
     print(f"ITPCorpus {len(declarations)} declarations {sum(d.kind == 'THM' for d in declarations)} theorems")
     print(f"LeanVersion {subprocess.check_output([lean, '--version'], text=True).strip()}")

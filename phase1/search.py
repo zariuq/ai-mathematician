@@ -140,10 +140,16 @@ class Search:
         return self.fidf.get(f, 1.0)
 
     def rank(self, goal_index, limit=32, name_w=0.0, recency_w=1.0,
-             knn_w=1.5, nb_w=3.0, nb_decay=8.0, nb_args=None):
+             knn_w=1.5, nb_w=3.0, nb_decay=8.0, nb_args=None, goal_obj=None):
         """Return up to `limit` (name, score) pairs, best first, drawn only
-        from declarations strictly before the goal."""
-        goal = self.decls[goal_index]
+        from declarations strictly before the goal.
+
+        `goal_obj` lets a caller rank for a statement that is not itself a
+        declaration -- an intermediate lemma lifted out of a proof, say --
+        while still cutting the candidate pool at `goal_index`, so the leak
+        discipline is unchanged. Omitted, it is the declaration at that
+        index, which is the ordinary case."""
+        goal = goal_obj if goal_obj is not None else self.decls[goal_index]
         goal_syms = set(goal.stmt_syms)
         # Definitions of the goal's own symbols are always relevant: a proof
         # usually has to unfold at least one of them.

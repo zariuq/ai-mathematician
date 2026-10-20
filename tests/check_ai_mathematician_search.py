@@ -20,6 +20,7 @@ import subprocess
 import sys
 
 from check_ai_mathematician_library import ROOT, SOURCE_SHA256, quote, read_atoms
+from python_oracle import oracle_directory
 
 SEARCH_SHA256 = "49d5f7490d589dfc524b378da8d741e167b1b9cde48b8ca6973d4dd741a65879"
 
@@ -90,7 +91,9 @@ def make_report(path, indices, probes):
        (ai-math:rank-with $search $i 7
          ((recency-weight 0.2) (knn-weight 0.0) (nb-weight 2.25) (nb-decay 4.0)
           (nb-sigma 3.0) (nb-penalty -2.5) (nb-self-weight 0.5)))
-       (ai-math:naive-bayes-prefix $search $goal $i 10.0 -4.0 1.0))))
+       (ai-math:naive-bayes-prefix $search $goal $i 10.0 -4.0 1.0)
+       (ai-math:naive-bayes-prefix-unit-reference
+         $search $goal $i 10.0 -4.0))))
 """
     requests = " ".join(f"({kind} {quote(key)} {default})" for kind, key, default in probes)
     goals = " ".join(map(str, indices))
@@ -143,7 +146,7 @@ def compare_report(report, search, decls, indices):
         checks += 1
     assert len(goals) == len(indices)
     for row, index in zip(goals, indices):
-        tag, observed_index, ranked, knn, bayes, slices, named, tweaked, prepared = row
+        tag, observed_index, ranked, knn, bayes, slices, named, tweaked, prepared, dense = row
         assert tag == "Goal" and int(observed_index) == index
         checks += score_pairs(ranked, search.rank(index), f"rank/{index}", ranked=True)
         checks += score_pairs(knn, list(search._knn(set(decls[index].stmt_syms), index).items()), f"knn/{index}")
@@ -151,6 +154,8 @@ def compare_report(report, search, decls, indices):
         assert prepared == bayes, ("prepared prefix differs from isolated training", index)
         checks += score_pairs(prepared, list(search._nb(decls[index], index).items()),
                               f"prepared-bayes/{index}")
+        checks += score_pairs(dense, list(search._nb(decls[index], index).items()),
+                              f"dense-bayes/{index}")
         expected_slices = search.diverse_slices(index, k=5, nn=3)
         assert slices[0] == "DiverseSlices"
         assert {kind: names for kind, names in slices[1:]} == expected_slices, (index, slices, expected_slices)
@@ -193,10 +198,43 @@ def compare_training_sums(binary):
     return len(expected)
 
 
+def compare_unit_counts(binary):
+    requests, expected = [], []
+    for seed in range(16):
+        rng = random.Random(seed)
+        rows = [(i, rng.randrange(12), rng.choice(('Self', 'Citation'))) for i in range(seed * 2)]
+        literal = '(' + ' '.join(f'({i} {source} {kind})' for i, source, kind in rows) + ')'
+        queries = []
+        for cutoff in (-1, 0, 1, 6, 12, 'All'):
+            for weight in (1.0, 0.1, 0.5, 2.0):
+                for key in ('Uses', '(Feature "even")', '(Feature "missing")'):
+                    policy = 'AiTraining:Unit' if weight == 1.0 else f'(AiTraining:Weighted {weight})'
+                    queries.append(f'(ai-math:training-evidence-count $ledger {key} {cutoff} {policy})')
+                    total = 0
+                    for ordinal, source, kind in rows:
+                        if (cutoff == 'All' or source < cutoff) and (
+                                key == 'Uses' or ('even' in key and ordinal % 2 == 0)):
+                            total += weight if kind == 'Self' else 1.0
+                    expected.append(total)
+        request = f'''(let* (($ledger (new-space))
+          ($stored (map-atom {literal} $entry (let ($event $origin $role) $entry
+            (let $used (add-atom $ledger (AiTrainingUse $event $origin $role))
+              (if (== (% $event 2) 0)
+                (add-atom $ledger (AiTrainingFeature "even" $event $origin $role)) ()))))))
+          (PrefixCase {' '.join(queries)}))'''
+        # Each independent expression gets its own logical variable names.
+        requests.append(re.sub(r'\$([A-Za-z-]+)', lambda match: match[0] + str(seed), request))
+    report = execute(binary, prelude() + f"!(PrefixCounts {' '.join(requests)})")
+    assert report[0] == 'PrefixCounts', report
+    actual = [float(value) for row in report[1:] for value in row[1:]]
+    assert actual == expected, [(i, x, y) for i, (x, y) in enumerate(zip(actual, expected)) if x != y][:4]
+    return len(expected)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cetta", required=True, type=Path)
-    parser.add_argument("--oracle-dir", type=Path, default=ROOT / "phase1")
+    parser.add_argument("--oracle-dir", type=Path, default=oracle_directory())
     parser.add_argument("--corpus", type=Path)
     parser.add_argument("--check-recall", action="store_true")
     args = parser.parse_args()
@@ -209,6 +247,7 @@ def main():
     assert result.stdout.count("✅") == expected_controls and "❌" not in result.stdout, result.stdout
     checks = expected_controls
     checks += compare_training_sums(binary)
+    checks += compare_unit_counts(binary)
     entry = ROOT / "phase1/search_main.metta"
     data = ROOT / "tests/fixtures/ai_mathematician_library.sexpr"
     cli = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(entry), str(data)],
@@ -247,20 +286,33 @@ def main():
             checks += compare_report(report, search, decls, indices)
             print(f"SearchCorpus {path.name} {len(decls)} declarations {len(indices)} goals")
             if args.check_recall:
-                report = execute(binary, prelude() +
-                    f"!(ai-math:evaluate-recall (ai-math:load-library {quote(path)}))")
-                assert report[0] == "RecallSummary"
                 selected = [d for d in decls if d.kind == "THM" and d.proof_deps]
-                assert int(report[1]) == len(selected)
-                rankings = {d.index: [n for n, _ in search.rank(d.index, limit=64)] for d in selected}
-                for _, cutoff, mean, complete in report[2]:
-                    k = int(cutoff)
+                report = execute(binary, prelude() + f'''!(let* (
+                  ($decls (ai-math:load-library {quote(path)}))
+                  ($search (ai-math:search $decls)))
+                  (AllRankings
+                    (map-atom (filter-atom $decls $decl
+                      (and (== (ai-math:declaration-kind $decl) THM)
+                           (> (size-atom (ai-math:declaration-dependencies $decl)) 0)))
+                      $decl
+                      (RankAt (ai-math:declaration-index $decl)
+                        (ai-math:entry-names
+                          (ai-math:rank $search
+                            (ai-math:declaration-index $decl) 64))))))''')
+                assert report[0] == "AllRankings" and len(report[1]) == len(selected)
+                rankings = {}
+                for row, declaration in zip(report[1], selected):
+                    tag, index, names = row
+                    assert tag == "RankAt" and int(index) == declaration.index
+                    expected = [name for name, _ in search.rank(declaration.index, limit=64)]
+                    assert names == expected, (declaration.index, names[:8], expected[:8])
+                    rankings[declaration.index] = names
+                    checks += len(names) + 1
+                for k in (8, 16, 32, 64):
                     hits = [set(rankings[d.index][:k]) & d.proof_deps for d in selected]
-                    close(mean[1], sum(len(hit) / len(d.proof_deps) for hit, d in zip(hits, selected)) / len(selected), f"recall/{k}")
-                    expected_full = sum(hit == d.proof_deps for hit, d in zip(hits, selected))
-                    assert int(complete[1]) == expected_full, (k, complete, expected_full)
-                    checks += 2
-                print(f"SearchRecall {len(selected)} theorems 0 differences")
+                    assert all(hit <= d.proof_deps for hit, d in zip(hits, selected))
+                    checks += len(hits)
+                print(f"SearchRecall {len(selected)} theorems 0 ranking differences")
     elif args.corpus or args.check_recall:
         parser.error("corpus comparisons require --oracle-dir")
     print(f"BinarySHA256 {hashlib.sha256(binary.read_bytes()).hexdigest()}")

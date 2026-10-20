@@ -12,15 +12,16 @@
 !(import! &self "itp.metta")
 !(import! &self "proof_strategy.metta")
 !(import! &self "induction.metta")
+!(import! &self "smt_bridge.metta")
 !(import! &self "induction_prover.metta")
 !(import! &self "prover.metta")
 !(import! &self "experiment.metta")
 !(import! &self "experiment_workers.metta")
 
-!(let* (($request (json-parse (fs:read-text "/dev/stdin")))
+!(let* (($request (json:parse (fs:read-text "/dev/stdin")))
         ($root (fs:canonical-path (str:concat (system:entry-directory) "/..")))
         ($result (ai-math:worker-run $request $root)))
    (case $result
      (((JsonObject $fields)
-       (system:write stdout (str:concat (json-stringify $result) "\n")))
+       (system:write stdout (str:concat (json:stringify $result) "\n")))
       ($fault (let $printed (println! $fault) (system:exit 2))))))

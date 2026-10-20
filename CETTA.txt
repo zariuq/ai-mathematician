@@ -97,6 +97,57 @@ command-line entry and import the definition-only files in other programs.
 The standalone entry files spell out imports because PeTTa 1.0.6 resolves
 them relative to the top-level source.
 
+Optional SMT-LIB advice
+-----------------------
+
+Set "smt": true in a worker configuration, or add (smt true) to the
+options passed to ai-math:prover-with. It is off by default. If no THF
+slice supplies a proof, the controller tries up to the first four selected
+slices through the same Vampire's smtlib2 input mode. All subsequent Lean
+attempts and the independent acceptance guard remain unchanged.
+
+phase1/smt_bridge.metta contains the translation, structured command values,
+renderer and process call, all in MeTTa. It uses the prepared THF catalogue
+instead of loading another copy of the source proofs. Function sorts,
+explicit application and lambda lifting support higher-order source terms.
+The Nat datatype/embedding supplies induction advice, not trusted axioms to
+the Lean checker. Definition expansion follows the reference bridge's
+shallow predicate policy; unsupported premises are recorded and rolled back.
+
+Reusable generation calls, after importing atp.metta, induction.metta and
+smt_bridge.metta:
+
+  (ai-math:smt-problem context goal-fact premise-names options)
+  (ai-math:smt-text problem)
+  (ai-math:smt-vampire context problem vampire seconds extra-arguments)
+  (ai-math:smt-summary report)
+
+goal-fact is an AiTHF:Fact, including the original source cutoff for a
+synthetic induction case. Options include (definition-depth 3), (bridge N),
+(guard N), and (motive true). Bridge/guard positions count every leading
+ALL/IMP occurrence. A motive requires a real nat_p guard for that variable;
+other hypotheses and binders retain their order. The standard controller
+fallback uses no selected bridge variable. Custom induction experiments can
+request a motive and pass ("-ind" "struct" "-updr" "off" "-nm" "0") to
+Vampire. No separate SMT solver is required.
+
+formats/SMTLibExport.module declares the emitted SMT-LIB fragment: commands,
+sort declarations, datatypes, quantifiers, applications and named assertions.
+The qualification suite compiles this module with CeTTa's generic parser
+and checks complete generated scripts plus malformed controls. That is an
+independent syntax check, not a proof of translation soundness, and the
+renderer is authored MeTTa rather than generated from this grammar. This
+fragment is not a general-purpose reader for every SMT-LIB construct.
+Production generation does not parse its own output or construct a CST.
+The module qualification currently runs in PeTTa's extended profile; the
+translator and optional controller run in primary PeTTa 1.0.6.
+
+Trace-enabled SMT successes retain a .problem.smt2 and the solver's SZS/TPTP
+output, with schema ai-math.smtlib-tstp.v1. A recorded solver success remains
+advice. Run make test-cetta-smt with CETTA and VAMPIRE to check the bridge.
+The command shapes follow the SMT-LIB reference:
+https://smt-lib.org/language.shtml
+
 Start here: an isolated parallel experiment
 ------------------------------------------
 
@@ -183,10 +234,15 @@ rechecked resume without relying on timing thresholds:
 
 The test driver's --worker-counts 1,2,4 option also exercises four workers.
 
-Process cancellation/deadlines have lib/proc's process-group guarantee;
-descendants that start separate groups are outside that guarantee. In
-particular this is not an OS sandbox or a transitive process-tree supervisor.
-The individual solver/Lean attempt policies still apply to nested jobs.
+Application workers, proof guards, solver attempts and HTTP wait timers use
+lib/proc's explicit lifetime owner option. Deploy CeTTa together with its
+.proc-scope companion, built alongside it. A Linux subreaper and a private
+liveness pipe revoke the process tree when its caller dies, including during
+startup, and reap descendants that leave the original process group. This
+mechanism composes without creating nested user namespaces. It is lifetime
+management, not a filesystem sandbox; the proof proposer has a separate
+isolation boundary. Unrelated processes and lib/proc's default lifetime group
+contract are unchanged. The individual attempt budgets still apply.
 
 Entry files collect application imports explicitly. This respects PeTTa
 1.0.6's top-level-source-relative import semantics. Shared dependencies use
@@ -310,13 +366,20 @@ library. After changing corpora, regenerate MegLib.lean and rebuild the
 Lean prerequisites before proving. Configuration establishes this trusted
 pairing; the guard checks the imported statement, not an automatic proof of
 correspondence between the export and an independently chosen Lean library.
-Lean metaprograms can perform I/O: this is not an OS sandbox for hostile
-tactics. Checking the exact translated Lean statement is also not a theorem
-that the Megalodon-to-Lean translation preserves every source judgment.
-The source-order guard constrains proof dependencies, not information flow:
-the full imported library contains original proofs that a hostile metaprogram
-could inspect. Independent benchmark runs therefore require trusted tactic
-strategies or stronger isolation of the source prefix.
+The guard loads its trusted environment before launching a proposal. The
+proposal receives a separate source-prefix module: real earlier declarations
+and their proofs, plus the target type as data. The target's proof and later
+declarations are omitted. References in the retained prefix are checked for
+closure before serialization; earlier theorems are not replaced with axioms.
+Bubblewrap isolates the proposal's filesystem, process IDs, environment and
+network. Only fixed runtime/library dependencies are readable; only its own
+certificate directory is writable. LLM credentials and the application tree
+are not mounted. Linux user namespaces and Bubblewrap are prerequisites;
+CETTA_BWRAP can select the backend executable. Failure to establish isolation
+is an operational fault, never an unsandboxed fallback or a rejected proof.
+The checker still independently replays the certificate against the original
+statement. These controls do not prove the OS boundary or native runtime
+correct, impose host-wide quotas, or establish translation soundness.
 
 Controller and batched attempts
 ------------------------------
@@ -498,7 +561,7 @@ A minimal configuration is:
   {"corpus":"data/corpus.sexpr", "baseline":"results/cetta.jsonl",
    "output":"results/proposals.jsonl", "model":"YOUR_MODEL",
    "ledger":"results/calls.jsonl", "call_cap":10, "mode":"direct",
-   "rounds":3, "allow_unsandboxed_metaprograms":true}
+   "rounds":3, "premise_limit":96, "context_chars":80000}
 
 LLM_BASE_URL and LLM_API_KEY are explicit environment inputs; .env is not
 read automatically. Use an HTTP-enabled CeTTa build. No default model is
@@ -507,6 +570,30 @@ chosen endpoint. Optional stride, limit (0 means all), skip, vampire_only,
 resume, lean and vampire fields control the application run. DSP rounds
 means repair rounds. Baseline premise/definition fields are advice only;
 prompts and acceptance are checked against the current source catalogue.
+premise_limit defaults to 96 for search-selected advice, context_chars to
+80000 and definition_chars to 12000. Context budgets retain whole declaration
+texts and count Unicode scalars. Zero character budget means unbounded.
+goal_state adds a checked probe after introductions and logic bridging;
+feedback_chars bounds the returned Lean diagnostic (default 2500).
+salvage permits one continuation when the endpoint returns only reasoning
+notes at its token limit. That continuation and every retry reserve their
+own paid-call slots; a second length-only response does not recurse again.
+timeout_ms selects the HTTP deadline (default 600000). Formatting repairs
+and deterministic closers use no model calls and still pass the full checker.
+
+proof_advice optionally reruns the configured Vampire premise slices and
+includes its TPTP refutation as guidance. It is off by default. The shared
+strict reader supplies structured inference records; duplicate IDs, missing
+predecessors, cycles and unsupported annotations are explicit advice requests, not
+silently repaired proofs. proof_chars selects a whole-record display budget
+(default 12000, zero unbounded). Producer paths are omitted from the display;
+only mentioned earlier catalogue identifiers receive library-name mappings.
+The identifier payload and inference records share this budget; fixed guidance
+and omission notices are additional.
+The transcript records the advice slice and digest, or its unavailability.
+Dependency validation accepts any source ordering and preserves repeated edges.
+This is not TSTP proof checking: every resulting Lean script still passes the
+independent checker. The reusable entry point is ai-math:proof-advice.
 
 Credentials stay out of command arguments, output and usage records. The
 call ledger reserves before HTTP submission under flock; retries count and
@@ -514,10 +601,11 @@ crashes do not refund calls. A malformed ledger fails closed. A shared HTTP
 session owns io:poll and retains interleaved completions by ID. Waiting uses
 proc:wait, not a busy loop. This POSIX runner uses flock and sleep utilities.
 
-Important: the proof runner is not an OS sandbox. A Lean metaprogram can
-perform I/O or inspect imported proofs. The explicit consent flag acknowledges
-that risk; it does not remove it. Do not execute hostile proposals alongside
-secrets or treat such a run as an isolated independent-discovery benchmark.
+The isolated proposer is not an unrestricted application process. No consent
+flag bypasses isolation. Bubblewrap, Linux, the fixed Lean tools and the
+certificate decoder remain trusted, and a metaprogram can still consume its
+allocated resources. Checked proof acceptance and independently discovering
+a proof remain distinct claims.
 Kernel/dependency guards validate proof terms, not their information sources.
 
 Comparison tests

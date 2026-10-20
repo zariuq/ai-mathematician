@@ -1,0 +1,48 @@
+Module SMTLibExport {
+  Theory Script() {
+    Empty
+    Terms {
+      token SMTName (letter | '_') (letter | digit | '_')*;
+      Script . SMTScript ::= SMTCommands;
+      CommandsNil . SMTCommands ::= ;
+      CommandsCons . SMTCommands ::= SMTCommand SMTCommands;
+      SetLogic . SMTCommand ::= "(" "set-logic" "ALL" ")";
+      DeclareSort . SMTCommand ::= "(" "declare-sort" SMTName "0" ")";
+      DeclareFun . SMTCommand ::= "(" "declare-fun" SMTName "(" SMTSorts ")" SMTName ")";
+      DeclareDatatypes . SMTCommand ::= "(" "declare-datatypes" "(" SMTSortDecls ")" "(" SMTDatatypes ")" ")";
+      Assert . SMTCommand ::= "(" "assert" SMTTerm ")";
+      CheckSat . SMTCommand ::= "(" "check-sat" ")";
+      SortsNil . SMTSorts ::= ;
+      SortsCons . SMTSorts ::= SMTName SMTSorts;
+      SortDecl . SMTSortDecl ::= "(" SMTName "0" ")";
+      SortDeclsOne . SMTSortDecls ::= SMTSortDecl;
+      SortDeclsCons . SMTSortDecls ::= SMTSortDecl SMTSortDecls;
+      Datatype . SMTDatatype ::= "(" SMTConstructors ")";
+      DatatypesOne . SMTDatatypes ::= SMTDatatype;
+      DatatypesCons . SMTDatatypes ::= SMTDatatype SMTDatatypes;
+      Constructor . SMTConstructor ::= "(" SMTName SMTSelectors ")";
+      ConstructorsOne . SMTConstructors ::= SMTConstructor;
+      ConstructorsCons . SMTConstructors ::= SMTConstructor SMTConstructors;
+      SelectorsNil . SMTSelectors ::= ;
+      SelectorsCons . SMTSelectors ::= "(" SMTName SMTName ")" SMTSelectors;
+      Ref . SMTTerm ::= SMTName;
+      True . SMTTerm ::= "true";
+      False . SMTTerm ::= "false";
+      Apply . SMTTerm ::= "(" SMTName SMTTermsNonempty ")";
+      Equal . SMTTerm ::= "(" "=" SMTTerm SMTTerm ")";
+      Implies . SMTTerm ::= "(" "=>" SMTTerm SMTTerm ")";
+      And . SMTTerm ::= "(" "and" SMTTerm SMTTerm ")";
+      Or . SMTTerm ::= "(" "or" SMTTerm SMTTerm ")";
+      Not . SMTTerm ::= "(" "not" SMTTerm ")";
+      Forall . SMTTerm ::= "(" "forall" "(" SMTBinders ")" SMTTerm ")";
+      Exists . SMTTerm ::= "(" "exists" "(" SMTBinders ")" SMTTerm ")";
+      Named . SMTTerm ::= "(" "!" SMTTerm ":named" SMTName ")";
+      TermsOne . SMTTermsNonempty ::= SMTTerm;
+      TermsCons . SMTTermsNonempty ::= SMTTerm SMTTermsNonempty;
+      Binder . SMTBinder ::= "(" SMTName SMTName ")";
+      BindersOne . SMTBinders ::= SMTBinder;
+      BindersCons . SMTBinders ::= SMTBinder SMTBinders;
+    }
+  }
+  theory Script()
+}

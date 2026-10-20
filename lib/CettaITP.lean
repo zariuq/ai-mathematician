@@ -65,8 +65,12 @@ def attempt (base : Environment) (request : Json) (target : String) : CommandEla
       return (name, toString (← ppExpr info.type))
     return response target "statements" "ok" [("statements", toJson statements)]
   let targetName := Name.str `Megalodon target
-  let some (.thmInfo original) := base.find? targetName
-    | return response target "rejected" "unknown-theorem"
+  let original ← match base.find? targetName with
+    | some (.thmInfo info) => pure info.toConstantVal
+    | _ =>
+      let some (.defnInfo expected) := base.find? `CettaITPRequest.expectedType
+        | return response target "rejected" "unknown-theorem"
+      pure { name := targetName, levelParams := expected.levelParams, type := expected.value }
   if operation == "statement" then
     let statement ← runTermElabM fun _ => return toString (← ppExpr original.type)
     return response target "statement" "ok" [("statement", toJson statement)]

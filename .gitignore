@@ -27,3 +27,13 @@ tools/duper-env/*
 .cetta/
 cetta-run.json
 results/cetta-*/
+
+# raw Megalodon export and third-party binaries (large; see README, "Setup")
+data/mglib/
+tools/zipperposition/
+
+# LLM spend ledgers (per-run bookkeeping)
+results/*ledger*.jsonl
+
+# embedding caches (regenerable, large)
+results/emb_*.json

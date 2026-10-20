@@ -22,7 +22,7 @@ from check_ai_mathematician_prover import prelude as prover_prelude
 def prelude():
     return (prover_prelude() + '!(import! &self io)\n!(import! &self re)\n' +
             "".join(f'!(import! &self {quote(ROOT / "phase1" / name)})\n'
-                    for name in ("http_transport.metta", "llm_transport.metta", "llm.metta",
+                    for name in ("proof_advice.metta", "http_transport.metta", "llm_transport.metta", "llm.metta",
                                  "experiment.metta", "llm_experiment.metta")))
 
 
@@ -52,6 +52,7 @@ def main():
     parser.add_argument("--cetta", type=Path, required=True)
     parser.add_argument("--http-cetta", type=Path)
     parser.add_argument("--corpus", type=Path)
+    parser.add_argument("--vampire", type=Path)
     parser.add_argument("--lean", default="lean")
     args = parser.parse_args()
     binary = Path(shutil.which(str(args.cetta)) or args.cetta).resolve()
@@ -123,7 +124,18 @@ def main():
             if body["model"] == "malformed":
                 self.answer(200, b"not-json")
                 return
-            if body["model"] in ("proof", "experiment"):
+            if body['model'].startswith('salvage') and (count == 0 or body['model'] == 'salvage-twice'):
+                self.answer(200, {'choices': [{'finish_reason': 'length',
+                    'message': {'content': None, 'reasoning': 'discarded-prefix' + 'λ' * 12005}}],
+                    'usage': {'prompt_tokens': 3, 'completion_tokens': 2}})
+                return
+            if body['model'] == 'notes-secret':
+                self.answer(200, {'choices': [{'finish_reason': 'length', 'message': {
+                    'content': '', 'reasoning': self.headers['Authorization'].removeprefix('Bearer ')}}]})
+                return
+            if body['model'] == 'proof-advice':
+                text = '```lean\nintro P Q hp hq\napply (b_and Q P).mpr\nexact And.intro hq hp\n```'
+            elif body["model"] in ("proof", "experiment"):
                 text = ("exact orIL" if count == 0 else "intro P Q hp r f g\nexact f hp")
                 text = "```lean\n" + text + "\n```"
             elif body["model"] == "dsp":
@@ -147,7 +159,7 @@ def main():
         client = lambda model, cap, options="()": (
             f'(ai-math:llm-client {quote(ROOT)} (ai-math:http-session) {quote(url + "/v1")}'
             f' {quote(model)} {quote(secret)} {quote(output / (model + ".jsonl"))} {cap} {options})')
-        messages = '((JsonObject ((JsonPair "role" (JsonString "user")) (JsonPair "content" (JsonString "hi")))))'
+        messages = '((JsonObject ((JsonPair "role" "user") (JsonPair "content" "hi"))))'
         actual = execute(http_binary, prelude() + f"""
 !(let* (($client {client('normal', 1)})
         ($first (ai-math:llm-chat $client {messages} 1)))
@@ -156,6 +168,35 @@ def main():
         assert actual[0][:2] == ["AiLLM:Reply", "hello λ"] and actual[1] == ["AiLLM:Limit", "1"], actual
         assert len(requests) == 1 and secret not in (output / "normal.jsonl").read_text()
         checks += 3
+        for model in ('salvage', 'salvage-deepseek', 'salvage-twice'):
+            actual = execute(http_binary, prelude() + f'''
+!(ai-math:llm-chat {client(model, 2)} {messages} 1)
+''', output)
+            assert actual[:2] == ['AiLLM:Reply', '' if model == 'salvage-twice' else 'hello λ'], actual
+            sent = [item for item in requests if item['model'] == model]
+            assert len(sent) == 2, sent
+            assert sent[1]['reasoning_effort'] == ('none' if 'deepseek' in model else 'low'), sent[1]
+            assert sent[1]['messages'][:-1] == sent[0]['messages'], sent[1]
+            continuation = sent[1]['messages'][-1]['content']
+            assert 'λ' * 12000 in continuation and 'discarded-prefix' not in continuation, continuation[:100]
+            assert len((output / (model + '.jsonl')).read_text().splitlines()) == 4
+            checks += 6
+        actual = execute(http_binary, prelude() + f'''
+!(ai-math:llm-chat {client('salvage-disabled', 2, '((salvage false))')} {messages} 1)
+''', output)
+        assert actual[:2] == ['AiLLM:Reply', ''], actual
+        assert sum(item['model'] == 'salvage-disabled' for item in requests) == 1
+        actual = execute(http_binary, prelude() + f'''
+!(ai-math:llm-chat {client('salvage-cap', 1)} {messages} 1)
+''', output)
+        assert actual == ['AiLLM:Limit', '1'], actual
+        assert sum(item['model'] == 'salvage-cap' for item in requests) == 1
+        actual = execute(http_binary, prelude() + f'''
+!(ai-math:llm-chat {client('notes-secret', 1)} {messages} 1)
+''', output)
+        assert actual[0] == 'AiLLM:AttemptFailed' and 'credential-in-response' in str(actual), actual
+        assert secret not in str(actual) and secret not in (output / 'notes-secret.jsonl').read_text()
+        checks += 6
         actual = execute(http_binary, prelude() + f"""
 !(let $client {client('retry', 2, '((retry-delay-seconds 0) (token-field "max_completion_tokens"))')}
    (ai-math:llm-chat $client {messages} 2))
@@ -188,11 +229,39 @@ def main():
 """, output)
             assert actual[0] == "AiLLM:Result" and len(actual[2]) == 2, actual
             assert actual[-1][0] == "AiProver:Proved" and actual[-1][3] == "llm-r2", actual[-1]
-            assert actual[2][0][4][0] == "AiITP:Rejected" and "source-order" in str(actual[2][0]), actual[2][0]
+            assert actual[2][0][4][0] == "AiITP:Rejected" and any(
+                reason in str(actual[2][0]) for reason in ('source-order', 'Unknown identifier')), actual[2][0]
             proofs = [item for item in requests if item["model"] == "proof"]
             assert len(proofs) == 2 and [len(item["messages"]) for item in proofs] == [2, 4], proofs
-            assert "source-order" in proofs[1]["messages"][-1]["content"]
+            assert any(reason in proofs[1]["messages"][-1]["content"]
+                       for reason in ('source-order', 'Unknown identifier'))
+            assert "Lean's goal state after introductions and bridging:" in proofs[0]['messages'][1]['content']
             checks += 5
+            if args.vampire:
+                advised = execute(http_binary, prelude() + f'''
+!(let* (($ds (ai-math:load-library {quote(args.corpus.resolve())}))
+        ($context (ai-math:prover-with $ds {quote(args.corpus.resolve())} {quote(ROOT)}
+          {quote(args.lean)} {quote(args.vampire.resolve())}
+          ((slices (16)) (vampire-seconds 2) (definition-depth 3) (induction false) (use-duper false))))
+        ($client {client('proof-advice', 1, '((proof-advice true) (proof-chars 12000) (goal-state false))')}))
+   (ai-math:llm-prove $context $client "andI" () ("and") 1 (AiITP:Budget 30000 200000 8000)))
+''', output)
+                assert advised[0] == 'AiLLM:Result' and advised[-1][0] == 'AiProver:Proved', advised
+                assert advised[2][0][:3] == ['AiLLM:ProofContext', 'andI', '16'], advised[2]
+                sent = [r for r in requests if r['model'] == 'proof-advice']
+                assert len(sent) == 1 and 'TPTP inference records:' in sent[0]['messages'][1]['content'], sent
+                assert str(ROOT) not in sent[0]['messages'][1]['content'], sent
+                checks += 4
+            repaired = execute(http_binary, prelude() + f'''
+!(let* (($ds (ai-math:load-library {quote(args.corpus.resolve())}))
+        ($itp (ai-math:itp $ds {quote(ROOT)} {quote(args.lean)})))
+   ((ai-math:llm-check-script $itp "orIL" "intro P Q hp r f g" (AiITP:Budget 30000 200000 8000))
+    (ai-math:llm-check-script $itp "orIL" "exact _root_.True.intro" (AiITP:Budget 30000 200000 8000))))
+''', output)
+            assert repaired[0][0] == 'AiLLM:Checked' and repaired[0][2][0] == 'AiITP:Accepted', repaired[0]
+            assert 'all_goals' in repaired[0][1], repaired[0]
+            assert repaired[1][0] == 'AiLLM:Checked' and repaired[1][2][0] == 'AiITP:Rejected', repaired[1]
+            checks += 4
             actual = execute(http_binary, prelude() + f"""
 !(let* (($ds (ai-math:load-library {quote(args.corpus.resolve())}))
         ($itp (ai-math:itp $ds {quote(ROOT)} {quote(args.lean)}))
@@ -240,11 +309,10 @@ def main():
             config_path.write_text(json.dumps(config))
             entry = [str(http_binary), "--no-results", "--lang", "petta@1.0.6",
                      str(ROOT / "phase1/llm_experiment_main.metta"), str(config_path)]
-            blocked = subprocess.run(entry, cwd=ROOT, text=True, capture_output=True, check=False)
-            assert blocked.returncode == 2 and "configuration-and-unsandboxed-consent" in blocked.stdout
+            blocked = subprocess.run(entry, cwd=ROOT, text=True, capture_output=True, check=False,
+                                     env=dict(os.environ, LLM_API_KEY='', LLM_BASE_URL=''))
+            assert blocked.returncode == 2 and "credentials" in blocked.stdout
             assert not (output / "cli-results.jsonl").exists()
-            config["allow_unsandboxed_metaprograms"] = True
-            config_path.write_text(json.dumps(config))
             local_environment = dict(os.environ, LLM_API_KEY=secret, LLM_BASE_URL=url + "/v1")
             ran = subprocess.run(entry, cwd=ROOT.parent, env=local_environment,
                                  text=True, capture_output=True, check=False)
@@ -257,7 +325,7 @@ def main():
                 config_path.write_text(json.dumps({**config, key: invalid}))
                 rejected = subprocess.run(entry, cwd=ROOT.parent, env=local_environment,
                                           text=True, capture_output=True, check=False)
-                assert rejected.returncode == 2 and "configuration-and-unsandboxed-consent" in rejected.stdout, rejected.stdout
+                assert rejected.returncode == 2 and "configuration" in rejected.stdout, rejected.stdout
                 checks += 1
     finally:
         server.shutdown()

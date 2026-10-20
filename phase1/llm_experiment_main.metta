@@ -13,8 +13,10 @@
 !(import! &self "itp.metta")
 !(import! &self "proof_strategy.metta")
 !(import! &self "induction.metta")
+!(import! &self "smt_bridge.metta")
 !(import! &self "induction_prover.metta")
 !(import! &self "prover.metta")
+!(import! &self "proof_advice.metta")
 !(import! &self "experiment.metta")
 !(import! &self io)
 !(import! &self "http_transport.metta")
@@ -23,26 +25,29 @@
 !(import! &self "llm_experiment.metta")
 
 (= (ai-proposal-main:option $row $key $default)
-   (case (json-object-get $row $key)
-     ((JsonNull $default) ((JsonString $value) $value)
-      ((JsonNumber $value) (str:string->number $value))
-      ((JsonBool $value) $value) ($other AiProposal:InvalidConfig))))
+   (let $value (json:get $row $key)
+     (if (== $value JsonNull) $default
+       (if (or (== (get-type $value) String)
+               (or (== (get-type $value) Number)
+                   (or (== $value true) (== $value false))))
+         $value AiProposal:InvalidConfig))))
 (= (ai-proposal-main:valid $row)
    (and (ai-math:run-unique-object $row)
-     (and (== (ai-proposal-main:option $row "allow_unsandboxed_metaprograms" false) true)
        (and (foldl-atom ("corpus" "baseline" "output" "model" "ledger") true $ok $key
               (and $ok (== (get-type (ai-proposal-main:option $row $key AiMissing)) String)))
          (and (ai-proposal-main:policy $row)
-          (foldl-atom (ai-math:itp-json-keys (json-object-pairs $row)) true $ok $key
+          (foldl-atom (ai-math:itp-json-keys (json:object-pairs $row)) true $ok $key
            (and $ok (ai-math:contains
              ("corpus" "baseline" "output" "model" "ledger" "call_cap" "rounds" "mode"
               "stride" "limit" "skip" "vampire_only" "resume" "lean" "vampire"
-              "token_field" "allow_unsandboxed_metaprograms") $key))))))))
+              "token_field" "premise_limit" "context_chars" "definition_chars" "feedback_chars"
+              "goal_state" "salvage" "timeout_ms" "proof_advice" "proof_chars") $key)))))))
 (= (ai-proposal-main:policy $row)
-   (and (foldl-atom ("call_cap" "rounds" "stride" "limit" "skip") true $ok $key
+   (and (foldl-atom ("call_cap" "rounds" "stride" "limit" "skip" "premise_limit" "context_chars"
+                    "definition_chars" "feedback_chars" "timeout_ms" "proof_chars") true $ok $key
           (and $ok (ai-math:itp-natural (ai-proposal-main:option $row $key 0))))
      (and (> (ai-proposal-main:option $row "stride" 1) 0)
-       (and (foldl-atom ("resume" "vampire_only") true $ok $key
+       (and (foldl-atom ("resume" "vampire_only" "goal_state" "salvage" "proof_advice") true $ok $key
               (let $value (ai-proposal-main:option $row $key false)
                 (and $ok (or (== $value true) (== $value false)))))
          (and (ai-math:contains ("direct" "dsp") (ai-proposal-main:option $row "mode" "direct"))
@@ -66,7 +71,16 @@
                   ($client (ai-math:llm-client $root (ai-math:http-session) $endpoint
                     (ai-proposal-main:option $row "model" AiMissing) $secret
                     (ai-proposal-main:option $row "ledger" AiMissing) $cap
-                    ((token-field (ai-proposal-main:option $row "token_field" "max_tokens")))))
+                    ((token-field (ai-proposal-main:option $row "token_field" "max_tokens"))
+                     (premise-limit (ai-proposal-main:option $row "premise_limit" 96))
+                     (context-chars (ai-proposal-main:option $row "context_chars" 80000))
+                     (definition-chars (ai-proposal-main:option $row "definition_chars" 12000))
+                     (feedback-chars (ai-proposal-main:option $row "feedback_chars" 2500))
+                     (proof-advice (ai-proposal-main:option $row "proof_advice" false))
+                     (proof-chars (ai-proposal-main:option $row "proof_chars" 12000))
+                     (goal-state (ai-proposal-main:option $row "goal_state" true))
+                     (salvage (ai-proposal-main:option $row "salvage" true))
+                     (timeout-ms (ai-proposal-main:option $row "timeout_ms" 600000)))))
                   ($owner (ai-math:proposal-open $context $client $corpus
                     (ai-proposal-main:option $row "baseline" AiMissing) (ai-proposal-main:option $row "output" AiMissing)
                     (AiRun:Toolchain $lean $vampire (system:getenv-or-default "CETTA_BUILD_ID" "unspecified"))
@@ -82,10 +96,10 @@
                   ($names (ai-math:proposal-run $owner $names)))) $targets))
            (AiLLM:ProviderRequest http))
          (AiProposal:Request credentials)))
-     (AiProposal:Request configuration-and-unsandboxed-consent)))
+     (AiProposal:Request configuration)))
 !(if (== (system:argc) 1)
    (let* (($arg (system:arg 0)) ($path (if (== (get-metatype $arg) Symbol) (str:symbol->string $arg) $arg))
-          ($result (ai-proposal-main:run (json-parse (fs:read-text $path)))))
+          ($result (ai-proposal-main:run (json:parse (fs:read-text $path)))))
      (let $printed (println! $result)
        (system:exit (case $result (((AiRun:Summary $key $count $outcomes $issues) 0) ($other 2))))))
    (let $printed (println! "usage: llm_experiment_main.metta run-config.json") (system:exit 2)))

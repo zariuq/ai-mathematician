@@ -11,7 +11,7 @@ ITP_RUNTIME ?= native
 LEANC ?= $(shell "$(LEAN)" --print-prefix)/bin/leanc
 ITP_NATIVE := .cetta/lean-native
 ITP_COMPILER := .cetta/lean-compiler.txt
-ITP_MODULES := MegLib Bridge CettaProofTactics CettaITP CettaITPGuard
+ITP_MODULES := MegLib Bridge CettaProofTactics CettaITP CettaProposalView CettaITPGuard
 ITP_NATIVE_SOURCES := $(addprefix lib/,$(addsuffix .lean,$(ITP_MODULES))) phase1/itp_driver.lean phase1/itp_guard.lean lean-toolchain
 .SECONDARY: $(addprefix $(ITP_NATIVE)/ir/,$(addsuffix .c,$(ITP_MODULES) itp_driver itp_guard)) $(addprefix $(ITP_NATIVE)/ir/,$(addsuffix .o,$(ITP_MODULES) itp_driver itp_guard))
 
@@ -21,6 +21,19 @@ ITP_NATIVE_SOURCES := $(addprefix lib/,$(addsuffix .lean,$(ITP_MODULES))) phase1
 .PHONY: test-cetta-vampire-output test-cetta-lean-export test-cetta-experiment test-cetta-llm
 .PHONY: run-cetta test-cetta-workers
 .PHONY: test-cetta-ranked-bridge
+.PHONY: test-cetta-upstream test-cetta-isolation test-cetta-proof-advice
+.PHONY: test-cetta-smt
+test-cetta-smt:
+	$(PYTHON) tests/check_ai_mathematician_smt.py --cetta "$(CETTA)" \
+		--vampire "$(VAMPIRE)" $(if $(strip $(CORPUS)),--corpus "$(CORPUS)")
+test-cetta-proof-advice:
+	$(PYTHON) tests/check_ai_mathematician_proof_advice.py --cetta "$(CETTA)" \
+		$(if $(strip $(CORPUS)),--corpus "$(CORPUS)" --vampire "$(VAMPIRE)")
+test-cetta-upstream:
+	$(PYTHON) tests/check_ai_mathematician_upstream.py --cetta "$(CETTA)"
+test-cetta-isolation: prepare-cetta-itp-native
+	CETTA_ITP_RUNTIME=native $(PYTHON) tests/check_ai_mathematician_isolation.py --cetta "$(CETTA)" \
+		--corpus "$(CORPUS)" --lean "$(LEAN)"
 test-cetta-ranked-bridge:
 	$(PYTHON) tests/check_ai_mathematician_ranked_bridge.py --cetta "$(CETTA)" --corpus "$(CORPUS)"
 run-cetta: prepare-cetta-itp-native
@@ -62,6 +75,7 @@ $(ITP_NATIVE)/lib/Bridge.olean $(ITP_NATIVE)/ir/Bridge.c: $(ITP_NATIVE)/lib/MegL
 $(ITP_NATIVE)/lib/CettaProofTactics.olean $(ITP_NATIVE)/ir/CettaProofTactics.c: $(ITP_NATIVE)/lib/Bridge.olean
 $(ITP_NATIVE)/lib/CettaITP.olean $(ITP_NATIVE)/ir/CettaITP.c: $(ITP_NATIVE)/lib/CettaProofTactics.olean
 $(ITP_NATIVE)/lib/CettaITPGuard.olean $(ITP_NATIVE)/ir/CettaITPGuard.c: $(ITP_NATIVE)/lib/CettaITP.olean
+$(ITP_NATIVE)/lib/CettaITPGuard.olean $(ITP_NATIVE)/ir/CettaITPGuard.c: $(ITP_NATIVE)/lib/CettaProposalView.olean
 
 $(ITP_NATIVE)/ir/itp_driver.c: phase1/itp_driver.lean $(ITP_NATIVE)/lib/CettaITP.olean Makefile
 	LEAN_PATH="$(ITP_NATIVE)/lib" "$(LEAN)" -R phase1 -c "$@" "$<"
@@ -76,7 +90,7 @@ $(ITP_NATIVE)/itp-guard: $(ITP_NATIVE)/ir/itp_guard.o $(addprefix $(ITP_NATIVE)/
 	"$(LEANC)" -O3 -rdynamic $^ -o "$@.new"
 	mv -f "$@.new" "$@"
 
-$(ITP_NATIVE)/itp-worker: $(ITP_NATIVE)/ir/itp_driver.o $(addprefix $(ITP_NATIVE)/ir/,$(addsuffix .o,$(filter-out CettaITPGuard,$(ITP_MODULES))))
+$(ITP_NATIVE)/itp-worker: $(ITP_NATIVE)/ir/itp_driver.o $(addprefix $(ITP_NATIVE)/ir/,$(addsuffix .o,$(filter-out CettaITPGuard CettaProposalView,$(ITP_MODULES))))
 	"$(LEANC)" -O3 -rdynamic $^ -o "$@.new"
 	mv -f "$@.new" "$@"
 
@@ -112,11 +126,14 @@ lib/CettaProofTactics.olean: lib/CettaProofTactics.lean lib/Bridge.olean
 lib/CettaITP.olean: lib/CettaITP.lean lib/CettaProofTactics.olean
 	LEAN_PATH=lib $(LEAN) -o $@ $<
 
-lib/CettaITPGuard.olean: lib/CettaITPGuard.lean lib/CettaITP.olean
+lib/CettaProposalView.olean: lib/CettaProposalView.lean $(ITP_COMPILER)
+	$(LEAN) -o $@ $<
+
+lib/CettaITPGuard.olean: lib/CettaITPGuard.lean lib/CettaITP.olean lib/CettaProposalView.olean
 	LEAN_PATH=lib $(LEAN) -o $@ $<
 
 test-cetta: test-cetta-library test-cetta-search test-cetta-atp test-cetta-itp test-cetta-prover test-cetta-reconstruction test-cetta-vampire-output test-cetta-lean-export test-cetta-llm test-cetta-workers $(if $(strip $(CORPUS)),test-cetta-induction test-cetta-experiment)
-test-cetta: $(if $(strip $(CORPUS)),test-cetta-ranked-bridge)
+test-cetta: test-cetta-upstream test-cetta-proof-advice test-cetta-smt $(if $(strip $(CORPUS)),test-cetta-ranked-bridge test-cetta-isolation)
 
 test-cetta-vampire-output:
 	$(PYTHON) tests/check_ai_mathematician_vampire_output.py --cetta "$(CETTA)"
@@ -132,7 +149,7 @@ test-cetta-experiment: prepare-cetta-itp
 test-cetta-llm: prepare-cetta-itp
 	$(PYTHON) tests/check_ai_mathematician_llm.py --cetta "$(CETTA)" --lean "$(LEAN)" \
 		$(if $(strip $(HTTP_CETTA)),--http-cetta "$(HTTP_CETTA)") \
-		$(if $(strip $(CORPUS)),--corpus "$(CORPUS)")
+		$(if $(strip $(CORPUS)),--corpus "$(CORPUS)" --vampire "$(VAMPIRE)")
 
 test-cetta-prover: prepare-cetta-itp
 	$(PYTHON) tests/check_ai_mathematician_prover.py --cetta "$(CETTA)" --lean "$(LEAN)" \

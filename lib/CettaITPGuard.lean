@@ -1,5 +1,6 @@
 import CettaITP
 import Lean.Replay
+import CettaProposalView
 
 /- The proposer runs in a child process. A separate process reads its module
    as data and replays every new declaration into a fixed imported environment.
@@ -161,6 +162,67 @@ private def runWorker (command : String) (arguments : Array String) (input : Str
   stdin.flush
   return ← child.wait
 
+private def resolveExecutable (command : String) : IO System.FilePath := do
+  if command.contains '/' then
+    return ← IO.FS.realPath command
+  let some searchPath ← IO.getEnv "PATH"
+    | throw <| IO.userError "PATH is unavailable while resolving the worker"
+  for directory in searchPath.splitOn ":" do
+    let root := System.FilePath.mk <| if directory.isEmpty then "." else directory
+    let candidate := root / command
+    if ← candidate.pathExists then
+      return ← IO.FS.realPath candidate
+  throw <| IO.userError s!"worker executable is absent from PATH: {command}"
+
+private def isolatedWorker (command : String) (arguments : Array String)
+    (profile : String) (library certificates : System.FilePath) : IO (String × Array String) := do
+  let sysroot ← IO.FS.realPath (← findSysroot)
+  let mut options := #["--unshare-all", "--die-with-parent", "--new-session", "--clearenv",
+    "--cap-drop", "ALL", "--proc", "/proc", "--dev", "/dev", "--dir", "/tmp"]
+  for path in ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"] do
+    if ← (System.FilePath.mk path).pathExists then
+      options := options ++ #["--ro-bind", path, path]
+  options := options ++ #["--ro-bind", sysroot.toString, sysroot.toString,
+    "--ro-bind", library.toString, "/library", "--bind", certificates.toString, "/certificates"]
+  for module in [`Bridge, `CettaProofTactics, `CettaITP] do
+    let file ← IO.FS.realPath (← findOLean module)
+    IO.FS.writeBinFile (library / s!"{module}.olean") (← IO.FS.readBinFile file)
+  let mut leanPath := "/library"
+  if profile == "duper" then
+    for (module, index) in [(`Duper, 0), (`Auto, 1), (`Batteries, 2)] do
+      let file ← IO.FS.realPath (← findOLean module)
+      let some root := file.parent | throw <| IO.userError "dependency module has no directory"
+      let destination := s!"/dependencies/{index}"
+      options := options ++ #["--ro-bind", root.toString, destination]
+      leanPath := leanPath ++ ":" ++ destination
+  let executable ← if arguments.isEmpty then
+      resolveExecutable command
+    else
+      IO.FS.realPath (sysroot / "bin" / "lean")
+  let mut workerPath := "/worker"
+  if arguments.isEmpty then
+    options := options ++ #["--ro-bind", executable.toString, workerPath]
+  else
+    let sysrootPrefix := sysroot.toString ++ "/"
+    unless executable.toString.startsWith sysrootPrefix do
+      throw <| IO.userError "interpreted worker is outside the trusted Lean sysroot"
+    -- The Lean executable's dynamic libraries are located relative to the
+    -- executable.  The complete sysroot is already mounted read-only, so run
+    -- it at that path instead of rebasing it to /worker.
+    workerPath := executable.toString
+  options := options ++ #[
+    "--setenv", "LEAN_SYSROOT", sysroot.toString, "--setenv", "LEAN_PATH", leanPath,
+    "--setenv", "PATH", sysroot.toString ++ "/bin:/usr/bin:/bin",
+    "--setenv", "HOME", "/tmp", "--setenv", "TMPDIR", "/certificates/tmp", "--chdir", "/certificates"]
+  let workerArguments ← if arguments.isEmpty then pure #[] else do
+    unless arguments.size == 2 && arguments[0]! == "--run" do
+      throw <| IO.userError "invalid fixed worker command"
+    let script ← IO.FS.realPath arguments[1]!
+    options := options ++ #["--ro-bind", script.toString, "/driver.lean"]
+    pure #["--run", "/driver.lean"]
+  let backend := (← IO.getEnv "CETTA_BWRAP").getD "bwrap"
+  return (backend, options ++ #["--", workerPath] ++ workerArguments)
+
 private def run (command : String) (arguments : Array String) (input : String) : IO Json := do
   let .ok request := Json.parse input
     | return problem "" "invalid-request-json"
@@ -171,15 +233,24 @@ private def run (command : String) (arguments : Array String) (input : String) :
     return problem target "unknown-profile"
   let base ← fixedBase profile
   IO.FS.withTempDir fun directory => do
-    let code ← runWorker command arguments input directory
+    let certificates := directory / "certificates"
+    IO.FS.createDirAll (certificates / "tmp")
+    let proofOperation := ["check", "case", "batch", "case-batch"].contains operation
+    let (worker, workerArguments) ← if proofOperation then do
+      let library := directory / "library"
+      CettaProposalView.prepare base target library
+      isolatedWorker command arguments profile library certificates
+    else pure (command, arguments)
+    let workerDirectory := if proofOperation then "/certificates" else certificates.toString
+    let code ← runWorker worker workerArguments input workerDirectory
     unless code == 0 do
       return problem target "worker-process"
-    let responseFile := directory / "response.json"
+    let responseFile := certificates / "response.json"
     unless (← responseFile.pathExists) do
       return problem target "missing-worker-response"
     let .ok reply := Json.parse (← IO.FS.readFile responseFile)
       | return problem target "invalid-worker-response"
-    validateReply base directory target operation request reply
+    validateReply base certificates target operation request reply
 
 unsafe def main (args : List String) : IO UInt32 := do
   initSearchPath (← findSysroot)

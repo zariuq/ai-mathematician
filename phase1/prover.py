@@ -152,6 +152,36 @@ def apply_tactics(premises, defs):
                         f"apply hp{i}\n" + finish.format(u=u)))
     return out
 
+def apply2_tactics(premises, defs, limit=6):
+    """Backward-chain one step, then give each subgoal the full battery
+    rather than a single `grind`.
+
+    `apply_tactics` applies a premise and then asks grind to finish every
+    resulting subgoal in one shot -- the same single-leap assumption that
+    the one-shot strategies make, moved up a level. The measured failures
+    are proofs a human did in several steps, so the subgoals left by an
+    `apply` are exactly where a second step is needed. Here each subgoal
+    gets intros, bridging, grind, and failing that a bounded backward
+    search over the whole premise set.
+
+    Only the top `limit` premises are used for the outer apply: the ranked
+    list is ordered, and applying a badly-matched premise produces
+    subgoals that waste the whole candidate's budget."""
+    P = [f"\u00ab{p}\u00bb" for p in premises]
+    haves = "".join(f"have hp{i} := @{p}\n" for i, p in enumerate(P))
+    unfold = ", ".join([BRIDGE] + [f"\u00ab{d}\u00bb" for d in defs])
+    allp = ", ".join(P)
+    out = []
+    for i in range(min(limit, len(P))):
+        for tag, u in (("", BRIDGE), ("-unfold", unfold)):
+            finish = (f"all_goals ((try intros); (try simp only [{u}] at *); "
+                      f"(first | grind | solve_by_elim (maxDepth := 10) [{allp}]))")
+            out.append((f"apply2{tag}-{i}",
+                        f"intros\n{haves}(try simp only [{BRIDGE}] at *)\n"
+                        f"apply hp{i}\n{finish}"))
+    return out
+
+
 def duper_tactics(premises, defs):
     """Reconstruction with Duper (tools/duper-env), a proof-producing
     superposition prover inside Lean: the Sledgehammer recipe of re-proving
@@ -175,6 +205,14 @@ class Prover:
         self.sigs = statements
         self.inductor = Inductor(decls)
         self.use_duper = os.path.exists(DUPER_PATH.split(":")[1])
+        # second ATP channel (smt_bridge.py): the same Vampire on a many-
+        # sorted SMT-LIB encoding that unfolds only shallow predicate
+        # definitions. Off by default, so the v4 numbers are unchanged.
+        self.smt = None
+
+    def enable_smt(self):
+        from smt_bridge import SMT
+        self.smt = SMT(self.decls, self.thf._prim_idx)
 
     def premise_sets(self, goal, slices=(16, 32, 64, 128, 256, 512), vampire_timeout=30):
         """Return (premise_sets, defs, vampire_status).
@@ -190,7 +228,8 @@ class Prover:
         v3 budget: 30 s per slice and a 128-fact slice. v2 used 5 s and
         16/32/64; on the 395 goals v2 found no Vampire proof for, this
         budget found 66 (vampire30_*.jsonl), most at 128 facts."""
-        ranked = [n for n, _ in self.search.rank(goal.index, limit=max(slices))]
+        ranked = [n for n, _ in self.search.rank(goal.index, limit=max(slices),
+                                                  goal_obj=goal)]
         facts = [n for n in ranked if self.by_name[n].kind in ("THM", "AXIOM")]
         goal_defs = sorted(s for s in goal.stmt_syms
                            if s in self.by_name and self.by_name[s].kind == "DEF"
@@ -210,6 +249,21 @@ class Prover:
                 found.append((k, vf, vdefs))
             elif not found:
                 status = st
+        if not found and self.smt is not None:
+            # THF found nothing: the SMT channel proved induction step cases
+            # THF timed out on (Pi_nat_p's step: THF timeout, SMT at 32 facts)
+            from smt_bridge import run as run_smt
+            for k in slices[:4]:
+                try:
+                    text, ids = self.smt.problem(goal, ranked[:k], None)
+                except Unsupported:
+                    break
+                st, used, _ = run_smt(text, timeout=vampire_timeout,
+                                      extra=("-updr", "off", "-nm", "0"))
+                if st == "Theorem":
+                    found.append((k, [ids[u] for u in used if u in ids], set()))
+                    status = "smt"
+                    break
         if found:
             # Vampire's proof is not unique: different slices can yield
             # different proofs, and the facts one uses may suit Lean's
@@ -251,15 +305,32 @@ class Prover:
         return None
 
     def attempt_batch(self, goal, cands, timeout=120, single_timeout=60,
-                      max_retry_secs=480, heartbeats=200000, duper=False):
+                      max_retry_secs=480, heartbeats=200000, duper=False,
+                      guard=None, prelude="", err_limit=1200):
         """Check every candidate for one goal in a single Lean process.
-        Returns list of (label, ok, reason)."""
+        Returns list of (label, ok, reason).
+
+        `guard` overrides the statement-identity check. The default compares
+        the attempt's type against the library declaration of the same name,
+        which is what stops a proof of something subtly different counting.
+        A caller proving a statement that is *not* a library declaration --
+        an intermediate lemma lifted out of a proof -- has no such original
+        to compare against and supplies its own; the sorryAx and leak checks
+        are unaffected either way.
+
+        `prelude` is Lean source placed before the attempts inside
+        `namespace Megalodon` -- auxiliary lemmas the attempts cite, such as
+        the lifted cases of an induction. The guard's dependency walk goes
+        through local constants, so the prelude's own dependencies are leak-
+        checked as if they were inlined."""
         sig = self.sigs[goal.name]
         parts = ["import Lean", "import Bridge"] + (["import Duper"] if duper else []) + [
                  "set_option Elab.async false",
                  "set_option maxRecDepth 8000",
                  f"set_option maxHeartbeats {heartbeats}",
                  "set_option linter.unusedVariables false"]
+        if prelude:
+            parts.append(f"namespace Megalodon\n{prelude.rstrip()}\nend Megalodon")
         att_names = []
         for i, (label, script) in enumerate(cands):
             att = f"attempt__{i}"
@@ -267,7 +338,7 @@ class Prover:
             body = "".join(f"  {ln}\n" for ln in script.strip().splitlines())
             parts.append(f"namespace Megalodon\ntheorem {att}{sig} := by\n"
                          f"{body}end Megalodon")
-            parts.append(_GUARD.replace("{att}", att)
+            parts.append((guard or _GUARD).replace("{att}", att)
                          .replace("{orig}", _lean_name(goal.name))
                          .replace("GUARD ", f"GUARD[{att}] "))
         src = "\n".join(parts) + "\n"
@@ -298,7 +369,8 @@ class Prover:
                                 for c2 in cands[len(results):]]
                     break
                 r1 = self.attempt_batch(goal, [c], timeout=single_timeout,
-                                        heartbeats=heartbeats, duper=duper)
+                                        heartbeats=heartbeats, duper=duper,
+                                        guard=guard, prelude=prelude)
                 results += r1
                 if r1[0][1]:
                     results += [(c2[0], False, "skipped: already proved")
@@ -345,7 +417,7 @@ class Prover:
         for att, label in att_names:
             if att in errors:
                 results.append((label, False,
-                                "lean error: " + "\n---\n".join(errors[att])[:1200]))
+                                "lean error: " + "\n---\n".join(errors[att])[:err_limit]))
                 continue
             m = re.search(rf"GUARD\[{att}\] samestmt (\w+)", out)
             if not m or m.group(1) != "true":
@@ -378,7 +450,8 @@ class Prover:
         """First (principle, variable) split whose every case Vampire
         proves from Search's facts. Returns a dict, or None."""
         if ranked is None:
-            ranked = [n for n, _ in self.search.rank(goal.index, limit=max(slices))]
+            ranked = [n for n, _ in self.search.rank(goal.index, limit=max(slices),
+                                                  goal_obj=goal)]
         for pname, xi, gi, cases in self.inductor.splits(goal):
             used = []
             for c in cases:
@@ -425,14 +498,14 @@ class Prover:
                                            timeout=300, single_timeout=300)
         return ok, why, script
 
-    def prove(self, goal, extra_candidates=(), induction=True):
+    def prove(self, goal, extra_candidates=(), induction=True, guard=None):
         sets, defs, vstatus = self.premise_sets(goal)
         premises = sets[0]
         cands = candidate_tactics(premises, defs, self.goal_defs(goal))
         # further premise sets: their premise-using strategies only, and
         # only if the first batch fails (a batch costs the sum of all its
         # candidates, so adding them up front slowed easy goals ~10x)
-        second = []
+        second, third, fourth = [], [], []
         for j, alt in enumerate(sets[1:], start=2):
             second += [(f"{lbl}#{j}", s)
                        for lbl, s in candidate_tactics(alt, defs, self.goal_defs(goal))
@@ -450,10 +523,10 @@ class Prover:
                      if c[0] in ("intro-grind", "unfold-grind", "solve_by_elim",
                                  "goal-unfold-sbe", "ext-grind")]
         cands += list(extra_candidates)
-        results = self.attempt_batch(goal, cands)
+        results = self.attempt_batch(goal, cands, guard=guard)
         winner = next((lbl for lbl, ok, _ in results if ok), None)
         if not winner and second:
-            results += self.attempt_batch(goal, second, timeout=300,
+            results += self.attempt_batch(goal, second, guard=guard, timeout=300,
                                           single_timeout=90, max_retry_secs=600)
             winner = next((lbl for lbl, ok, _ in results if ok), None)
         if not winner and vstatus.startswith("Theorem"):
@@ -462,7 +535,7 @@ class Prover:
             third = [(f"{lbl}#{j}", s) for j, ps in enumerate(sets, start=1)
                      for lbl, s in apply_tactics(ps, defs)]
             if third:
-                results += self.attempt_batch(goal, third, timeout=300,
+                results += self.attempt_batch(goal, third, guard=guard, timeout=300,
                                               single_timeout=60, max_retry_secs=600)
                 winner = next((lbl for lbl, ok, _ in results if ok), None)
         if not winner and vstatus.startswith("Theorem") and self.use_duper:
@@ -478,15 +551,19 @@ class Prover:
                 if time.time() - t_duper > 900:
                     results.append((cand[0], False, "skipped: duper time cap"))
                     continue
-                results += self.attempt_batch(goal, [cand], timeout=300,
+                results += self.attempt_batch(goal, [cand], guard=guard, timeout=300,
                                               single_timeout=300, max_retry_secs=0,
                                               heartbeats=1000000, duper=True)
                 if results[-1][1]:
                     winner = results[-1][0]
                     break
+        if winner:
+            win_script = dict(cands + second + third + fourth).get(winner)
         out = {"goal": goal.name, "index": goal.index, "vampire": vstatus,
                "premises": premises, "premise_sets": sets, "defs": defs,
                "results": results, "proved_by": winner}
+        if winner:
+            out["script"] = win_script
         if winner or not induction or vstatus.startswith("Theorem"):
             return out
         # Vampire found no direct proof: try induction, which supplies the

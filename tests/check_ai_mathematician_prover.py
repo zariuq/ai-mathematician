@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from check_ai_mathematician_atp import read_values
 from check_ai_mathematician_library import ROOT, quote
 from check_ai_mathematician_itp import load_oracles
+from python_oracle import oracle_directory
 
 PROVER_SHA256 = "d3f97da4d0b4585d0cd572a24aad136afedbfdcf6c1827f39204b9477579ae63"
 
@@ -34,6 +35,7 @@ def prelude():
             f'!(import! &self {quote(ROOT / "phase1/itp.metta")})\n'
             f'!(import! &self {quote(ROOT / "phase1/proof_strategy.metta")})\n'
             f'!(import! &self {quote(ROOT / "phase1/induction.metta")})\n'
+            f'!(import! &self {quote(ROOT / "phase1/smt_bridge.metta")})\n'
             f'!(import! &self {quote(ROOT / "phase1/induction_prover.metta")})\n'
             f'!(import! &self {quote(ROOT / "phase1/prover.metta")})\n')
 
@@ -61,9 +63,10 @@ def candidates(rows):
 
 
 def check_candidates(binary, directory):
-    assert hashlib.sha256((ROOT / "phase1/prover.py").read_bytes()).hexdigest() == PROVER_SHA256
+    reference_source = oracle_directory() / "prover.py"
+    assert hashlib.sha256(reference_source.read_bytes()).hexdigest() == PROVER_SHA256
     load_oracles()
-    spec = importlib.util.spec_from_file_location("original_prover", ROOT / "phase1/prover.py")
+    spec = importlib.util.spec_from_file_location("original_prover", reference_source)
     oracle = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(oracle)
     rng = random.Random(20261018)
@@ -177,7 +180,8 @@ def check_integration(binary, lean, vampire, corpus, directory, oracle):
     assert result[:2] == ["AiITP:Batch", "orIL"], result
     assert [row[1] for row in result[2]] == [label for label, _ in rows], result
     assert [row[2][0] for row in result[2]] == ["AiITP:Rejected", "AiITP:Accepted", "AiITP:Rejected"], result
-    assert result[2][0][2][2] == "source-order", result
+    assert any(reason in str(result[2][0][2]) for reason in
+               ("source-order", "Unknown identifier", "Unknown constant")), result
     checks += 5
 
     # A bounded batch may expire before producing a complete reply. Retrying

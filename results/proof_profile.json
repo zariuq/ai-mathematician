@@ -1,0 +1,855 @@
+[
+ {
+  "goal": "andI",
+  "status": "Theorem",
+  "steps": 14,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "orIL",
+  "status": "Theorem",
+  "steps": 12,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "orIR",
+  "status": "Theorem",
+  "steps": 11,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "iffI",
+  "status": "Theorem",
+  "steps": 40,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "introduced": 4,
+   "avatar_component_clause": 4,
+   "avatar_split_clause": 4,
+   "forward_demodulation": 2,
+   "trivial_inequality_removal": 2,
+   "avatar_contradiction_clause": 2,
+   "sat_conversion": 6,
+   "rat": 5,
+   "avatar_sat_refutation": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "pred_ext",
+  "status": "Theorem",
+  "steps": 47,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 1,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "negative_extensionality": 1,
+   "introduced": 4,
+   "avatar_component_clause": 4,
+   "avatar_split_clause": 2,
+   "constrained_superposition": 2,
+   "trivial_inequality_removal": 6,
+   "forward_demodulation": 4,
+   "avatar_contradiction_clause": 4,
+   "sat_conversion": 6,
+   "rat": 5,
+   "avatar_sat_refutation": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "negative_extensionality"
+  ]
+ },
+ {
+  "goal": "EmptyE",
+  "status": "Theorem",
+  "steps": 19,
+  "rules": {
+   "file": 3,
+   "negated_conjecture": 1,
+   "rectify": 3,
+   "fool_elimination": 3,
+   "ennf_transformation": 2,
+   "cnf_transformation": 3,
+   "definition_unfolding": 1,
+   "not_proxy_clausification": 1,
+   "constrained_superposition": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "not_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "PowerI",
+  "status": "Theorem",
+  "steps": 29,
+  "rules": {
+   "file": 3,
+   "negated_conjecture": 1,
+   "rectify": 4,
+   "fool_elimination": 3,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 4,
+   "definition_unfolding": 2,
+   "pi_proxy_clausification": 1,
+   "imp_proxy_clausification": 1,
+   "sigma_proxy_clausification": 1,
+   "constrained_superposition": 2,
+   "trivial_inequality_removal": 2,
+   "duplicate_literal_removal": 1,
+   "forward_subsumption_resolution": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "imp_proxy_clausification",
+   "pi_proxy_clausification",
+   "sigma_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "Subq_Empty",
+  "status": "Theorem",
+  "steps": 19,
+  "rules": {
+   "file": 3,
+   "negated_conjecture": 1,
+   "rectify": 3,
+   "fool_elimination": 3,
+   "ennf_transformation": 2,
+   "cnf_transformation": 3,
+   "definition_unfolding": 1,
+   "sigma_proxy_clausification": 1,
+   "constrained_superposition": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "sigma_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "Empty_In_Power",
+  "status": "Theorem",
+  "steps": 32,
+  "rules": {
+   "file": 5,
+   "negated_conjecture": 1,
+   "rectify": 6,
+   "fool_elimination": 5,
+   "flattening": 1,
+   "ennf_transformation": 1,
+   "cnf_transformation": 5,
+   "definition_unfolding": 2,
+   "sigma_proxy_clausification": 1,
+   "not_proxy_clausification": 1,
+   "constrained_superposition": 2,
+   "trivial_inequality_removal": 2
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "not_proxy_clausification",
+   "sigma_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "xm",
+  "status": "Theorem",
+  "steps": 10,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 1,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "FalseE",
+  "status": "Theorem",
+  "steps": 6,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "true_and_false_elimination": 1,
+   "cnf_transformation": 1
+  },
+  "hol_only": [
+   "fool_elimination",
+   "true_and_false_elimination"
+  ]
+ },
+ {
+  "goal": "andEL",
+  "status": "Theorem",
+  "steps": 11,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "andER",
+  "status": "Theorem",
+  "steps": 12,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "and3I",
+  "status": "Theorem",
+  "steps": 15,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 4,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "and3E",
+  "status": "Theorem",
+  "steps": 17,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 5,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1,
+   "forward_subsumption_resolution": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "or3I1",
+  "status": "Theorem",
+  "steps": 12,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "or3I2",
+  "status": "Theorem",
+  "steps": 12,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "or3I3",
+  "status": "Theorem",
+  "steps": 12,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "or3E",
+  "status": "Theorem",
+  "steps": 29,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 5,
+   "forward_subsumption_resolution": 3,
+   "introduced": 3,
+   "avatar_split_clause": 4,
+   "sat_conversion": 4,
+   "rat": 1,
+   "avatar_sat_refutation": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "and4I",
+  "status": "Theorem",
+  "steps": 16,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 5,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "and5I",
+  "status": "Theorem",
+  "steps": 17,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 6,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "and6I",
+  "status": "Theorem",
+  "steps": 18,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 7,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "and7I",
+  "status": "Theorem",
+  "steps": 19,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 8,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "not_or_and_demorgan",
+  "status": "Theorem",
+  "steps": 20,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "introduced": 2,
+   "avatar_split_clause": 3,
+   "sat_conversion": 3,
+   "rat": 1,
+   "avatar_sat_refutation": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "not_ex_all_demorgan_i",
+  "status": "Theorem",
+  "steps": 10,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 1,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "forward_subsumption_resolution": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "iffEL",
+  "status": "Theorem",
+  "steps": 13,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "definition_unfolding": 2,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "iffER",
+  "status": "Theorem",
+  "steps": 14,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "definition_unfolding": 2,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "iff_refl",
+  "status": "Theorem",
+  "steps": 10,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "ennf_transformation": 1,
+   "cnf_transformation": 1,
+   "duplicate_literal_removal": 2,
+   "forward_demodulation": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "iff_sym",
+  "status": "Theorem",
+  "steps": 14,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 1,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "duplicate_literal_removal": 2,
+   "forward_demodulation": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "iff_trans",
+  "status": "Theorem",
+  "steps": 17,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "definition_unfolding": 2,
+   "duplicate_literal_removal": 2,
+   "forward_demodulation": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "eq_i_tra",
+  "status": "Theorem",
+  "steps": 10,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "definition_unfolding": 1,
+   "forward_subsumption_resolution": 1
+  },
+  "hol_only": []
+ },
+ {
+  "goal": "neq_i_sym",
+  "status": "Theorem",
+  "steps": 9,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "flattening": 1,
+   "ennf_transformation": 1,
+   "rectify": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": []
+ },
+ {
+  "goal": "Eps_i_ex",
+  "status": "Theorem",
+  "steps": 16,
+  "rules": {
+   "file": 2,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 2,
+   "flattening": 1,
+   "ennf_transformation": 2,
+   "cnf_transformation": 3,
+   "constrained_superposition": 1,
+   "trivial_inequality_removal": 1,
+   "forward_subsumption_resolution": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "prop_ext_2",
+  "status": "Theorem",
+  "steps": 40,
+  "rules": {
+   "file": 1,
+   "negated_conjecture": 1,
+   "rectify": 1,
+   "fool_elimination": 1,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 3,
+   "introduced": 4,
+   "avatar_component_clause": 4,
+   "avatar_split_clause": 4,
+   "forward_demodulation": 2,
+   "trivial_inequality_removal": 2,
+   "avatar_contradiction_clause": 2,
+   "sat_conversion": 6,
+   "rat": 5,
+   "avatar_sat_refutation": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "Subq_ref",
+  "status": "Theorem",
+  "steps": 14,
+  "rules": {
+   "file": 2,
+   "negated_conjecture": 1,
+   "rectify": 2,
+   "fool_elimination": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 2,
+   "definition_unfolding": 1,
+   "sigma_proxy_clausification": 1,
+   "forward_demodulation": 1,
+   "trivial_inequality_removal": 1
+  },
+  "hol_only": [
+   "fool_elimination",
+   "sigma_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "Subq_tra",
+  "status": "Theorem",
+  "steps": 29,
+  "rules": {
+   "file": 2,
+   "negated_conjecture": 1,
+   "rectify": 3,
+   "fool_elimination": 2,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "cnf_transformation": 4,
+   "definition_unfolding": 3,
+   "sigma_proxy_clausification": 1,
+   "pi_proxy_clausification": 2,
+   "imp_proxy_clausification": 2,
+   "constrained_superposition": 2,
+   "trivial_inequality_removal": 3,
+   "forward_demodulation": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "imp_proxy_clausification",
+   "pi_proxy_clausification",
+   "sigma_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "Empty_Subq_eq",
+  "status": "Theorem",
+  "steps": 36,
+  "rules": {
+   "file": 3,
+   "negated_conjecture": 1,
+   "rectify": 4,
+   "fool_elimination": 3,
+   "flattening": 2,
+   "ennf_transformation": 2,
+   "cnf_transformation": 4,
+   "introduced": 2,
+   "avatar_component_clause": 2,
+   "avatar_split_clause": 2,
+   "superposition": 1,
+   "trivial_inequality_removal": 1,
+   "forward_subsumption_resolution": 2,
+   "avatar_contradiction_clause": 1,
+   "sat_conversion": 3,
+   "rat": 2,
+   "avatar_sat_refutation": 1
+  },
+  "hol_only": [
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "Empty_eq",
+  "status": "Theorem",
+  "steps": 27,
+  "rules": {
+   "file": 4,
+   "negated_conjecture": 1,
+   "rectify": 4,
+   "fool_elimination": 4,
+   "ennf_transformation": 2,
+   "cnf_transformation": 5,
+   "definition_unfolding": 2,
+   "sigma_proxy_clausification": 1,
+   "not_proxy_clausification": 1,
+   "constrained_superposition": 1,
+   "trivial_inequality_removal": 1,
+   "forward_subsumption_resolution": 1
+  },
+  "hol_only": [
+   "constrained_superposition",
+   "fool_elimination",
+   "not_proxy_clausification",
+   "sigma_proxy_clausification"
+  ]
+ },
+ {
+  "goal": "UnionI",
+  "status": "Theorem",
+  "steps": 24,
+  "rules": {
+   "file": 2,
+   "negated_conjecture": 1,
+   "rectify": 3,
+   "fool_elimination": 2,
+   "flattening": 3,
+   "ennf_transformation": 1,
+   "nnf_transformation": 1,
+   "cnf_transformation": 4,
+   "and_proxy_clausification": 1,
+   "constrained_superposition": 2,
+   "trivial_inequality_removal": 3,
+   "forward_demodulation": 1
+  },
+  "hol_only": [
+   "and_proxy_clausification",
+   "constrained_superposition",
+   "fool_elimination"
+  ]
+ },
+ {
+  "goal": "UnionE",
+  "status": "Theorem",
+  "steps": 24,
+  "rules": {
+   "file": 2,
+   "negated_conjecture": 1,
+   "rectify": 3,
+   "fool_elimination": 2,
+   "flattening": 2,
+   "ennf_transformation": 1,
+   "nnf_transformation": 1,
+   "cnf_transformation": 3,
+   "and_proxy_clausification": 1,
+   "constrained_superposition": 3,
+   "trivial_inequality_removal": 4,
+   "forward_demodulation": 1
+  },
+  "hol_only": [
+   "and_proxy_clausification",
+   "constrained_superposition",
+   "fool_elimination"
+  ]
+ }
+]
