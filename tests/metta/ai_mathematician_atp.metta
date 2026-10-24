@@ -133,6 +133,23 @@
 
 ; Repeated agreement is harmless; incomplete protocol or payloads stay visible.
 !(test
+   (map-atom (((proc:exited 1) "Timeout" 0 0)
+              ((proc:exited 1) "GaveUp" 0 0)
+              ((proc:exited 1) "Theorem" 0 0)
+              ((proc:exited 4) "Timeout" 0 0)
+              ((proc:signaled 9) "Timeout" 0 0)
+              ((proc:exited 1) "Timeout" 1 0)) $row
+     (let ($termination $word $err-seen $err-kept) $row
+       (case (ai-math:atp-summary
+               (AiATP:Report (TPTP:SZSReported $word) () () ()
+                 (proc:result $termination proc:normal "" ""
+                   (proc:capture 0 0 $err-seen $err-kept proc:eof proc:eof (proc:input 0 0)))
+                 (TPTP:SZSEnvelope () () TPTP:SZSComplete ()) ()))
+         (((AiATP:Advice $status $names $defs) ($status $names $defs))
+          ((AiATP:UnfinishedOrFaulted $status $observation $envelope) Unfinished)
+          ((AiATP:IncompleteCapture $status) Incomplete)))))
+   (("Timeout" () ()) ("GaveUp" () ()) Unfinished Unfinished Unfinished Incomplete))
+!(test
    (tptp:szs-status (tptp:szs-output
      "% SZS status Theorem for x\n% SZS status Theorem for x\n"))
    (TPTP:SZSReported "Theorem"))

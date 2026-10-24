@@ -6,6 +6,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_V4 = "5e73833790d43d066f72be1548be2ee0fcab192d"
 UPSTREAM_V7 = "2a2be8d856d2d267fb49230ddd237f252d869cbe"
+UPSTREAM_V9 = "f095266996dae3a658fb3ac63b2ffe414a9b9aa3"
 SOURCES = ("library.py", "sexpr_translate.py", "search.py", "atp.py",
            "itp.py", "prover.py", "induction.py", "llm.py")
 
@@ -22,7 +23,9 @@ def oracle_directory(revision=PYTHON_V4):
     cache = ROOT / ".cetta/python-oracles" / revision
     directory = cache / "phase1"
     directory.mkdir(parents=True, exist_ok=True)
-    sources = SOURCES + (("smt_bridge.py",) if revision == UPSTREAM_V7 else ())
+    sources = SOURCES + (("smt_bridge.py",) if revision in (UPSTREAM_V7,UPSTREAM_V9) else ())
+    if revision==UPSTREAM_V9:
+        sources += ("lean_sigs.py",)
     for name in sources:
         ran = subprocess.run(["git", "-C", str(ROOT), "show",
                               f"{revision}:phase1/{name}"], capture_output=True, check=False)

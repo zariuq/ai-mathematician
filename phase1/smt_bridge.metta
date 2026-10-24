@@ -501,7 +501,7 @@
        (ai-math:vampire-observation $context (AiTHF:Problem () $ids $skipped $unexpanded)
          (proc:run
            (union-atom ($executable "--input_syntax" "smtlib2" "-t" (str:number->string $seconds))
-             (union-atom $extra ("--output_axiom_names" "on" "--proof" "tptp")))
+             (union-atom $extra ("--proof" "tptp")))
            ((lifetime owner) (stdin (ai-math:smt-text $problem))
             (timeout-ms (if (== $seconds 0) 0 (+ (* $seconds 1000) 15000)))))))
       ($request $request))))

@@ -1,7 +1,7 @@
 """Run the LLM proposer over every goal the deterministic pipeline still
 misses -- the last stage of the Phase 1 design.
 
-The model is untrusted, exactly like Vampire: it proposes Lean tactic
+The model only proposes, exactly like Vampire: it writes Lean tactic
 scripts, and every script goes through `attempt_batch` with the ordinary
 guard (statement identity against the library declaration, no sorryAx, no
 leak). A success here counts for the same reason the 645 do.

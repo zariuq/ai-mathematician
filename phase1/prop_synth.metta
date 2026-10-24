@@ -1,0 +1,103 @@
+; Proof-term synthesis for the typed export's implication/forall fragment.
+; Import library, list, lean_export and itp first. A constructed term is only
+; a proposal: prop-check checks it at the original library statement.
+
+(= (ai-math:prop-synth $declarations $depth)
+   (if (ai-math:natural $depth)
+     (let* (($definitions (new-space)) ($lean (ai-math:lean-context))
+            ($stored (map-atom $declarations $decl
+              (let (Decl $i $kind $name $hash $stmt $body $ss $ds $fs) $decl
+                (let* (($named (ai-math:put (index-atom $lean 1) (Hash $hash) (AiLean:Name $name)))
+                       ($primitive (if (== $kind PRIM)
+                         (ai-math:put (index-atom $lean 1) (Primitive $i) (AiLean:Name $name)) ()))
+                       ($defined (if (and (== $kind DEF) (not (== $body NoBody)))
+                         (ai-math:put $definitions $hash $body) ()))) ())))))
+       (AiPropSynth $definitions $lean $depth)) (AiProp:Fault invalid-depth)))
+(= (ai-math:prop-shift $node $delta $cutoff)
+   (case $node
+     (((DB $i) (if (>= $i $cutoff) (DB (+ $i $delta)) $node))
+      ((ALL $type $body) (ALL $type (ai-math:prop-shift $body $delta (+ $cutoff 1))))
+      ((LAM $type $body) (LAM $type (ai-math:prop-shift $body $delta (+ $cutoff 1))))
+      ($other (if (== (get-metatype $other) Expression)
+        (if (== $other ()) () (cons-atom (car-atom $other)
+          (map-atom (cdr-atom $other) $child (ai-math:prop-shift $child $delta $cutoff)))) $other)))))
+(= (ai-math:prop-substitute $node $index $replacement)
+   (case $node
+     (((DB $i) (if (== $i $index) (ai-math:prop-shift $replacement $index 0)
+                  (if (> $i $index) (DB (- $i 1)) $node)))
+      ((ALL $type $body) (ALL $type (ai-math:prop-substitute $body (+ $index 1) $replacement)))
+      ((LAM $type $body) (LAM $type (ai-math:prop-substitute $body (+ $index 1) $replacement)))
+      ($other (if (== (get-metatype $other) Expression)
+        (if (== $other ()) () (cons-atom (car-atom $other)
+          (map-atom (cdr-atom $other) $child (ai-math:prop-substitute $child $index $replacement)))) $other)))))
+(= (ai-math:prop-whnf $context $node)
+   (ai-math:prop-whnf-fuel $context $node 200))
+(= (ai-math:prop-whnf-fuel (AiPropSynth $defs $lean $depth) $node $fuel)
+   (if (== $fuel 0) $node
+     (let $context (AiPropSynth $defs $lean $depth)
+       (case $node
+         (((TMH $hash)
+           (let $body (ai-math:get $defs $hash AiProp:Missing)
+             (if (== $body AiProp:Missing) $node
+               (ai-math:prop-whnf-fuel $context $body (- $fuel 1)))))
+          ((AP $fn $arg)
+           (case (ai-math:prop-whnf $context $fn)
+             (((LAM $type $body)
+               (ai-math:prop-whnf-fuel $context (ai-math:prop-substitute $body 0 $arg) (- $fuel 1)))
+              ($head (AP $head $arg)))))
+          ($other $other))))))
+(= (ai-math:prop-prove $context $goal)
+   (ai-math:prop-prove-in $context $goal () 0))
+(= (ai-math:prop-prove-in (AiPropSynth $defs $lean $maximum) $goal $hypotheses $depth)
+   (if (> $depth $maximum) AiProp:NoProof
+     (let $context (AiPropSynth $defs $lean $maximum)
+       (case (ai-math:prop-whnf $context $goal)
+         (((ALL $type $body)
+           (case (ai-math:prop-prove-in $context $body
+                   (map-atom $hypotheses $hyp (ai-math:prop-shift $hyp 1 0)) (+ $depth 1))
+             (((AiProp:Built $proof) (AiProp:Built (TLAM $type $proof))) ($other $other))))
+          ((IMP $left $right)
+           (case (ai-math:prop-prove-in $context $right (cons-atom $left $hypotheses) (+ $depth 1))
+             (((AiProp:Built $proof) (AiProp:Built (PLAM $left $proof))) ($other $other))))
+          ($atomic (ai-math:prop-use-hypotheses $context $atomic $hypotheses $hypotheses $depth 0)))))))
+(= (ai-math:prop-use-hypotheses $context $goal $hypotheses $remaining $depth $index)
+   (if (== $remaining ()) AiProp:NoProof
+     (let $attempt (ai-math:prop-use $context (car-atom $remaining) (HYP $index) $goal $hypotheses $depth 6 ())
+       (if (== $attempt AiProp:NoProof)
+         (ai-math:prop-use-hypotheses $context $goal $hypotheses (cdr-atom $remaining) $depth (+ $index 1))
+         $attempt))))
+(= (ai-math:prop-use $context $type $proof $goal $hypotheses $depth $fuel $operations)
+   (if (== $fuel 0) AiProp:NoProof
+     (let $current (ai-math:prop-whnf $context $type)
+       (if (== $current $goal)
+         (ai-math:prop-apply-operations $context $proof $hypotheses $depth (list:reverse $operations))
+         (case $current
+           (((ALL $bound $body)
+             (ai-math:prop-use $context (ai-math:prop-substitute $body 0 $goal) $proof $goal $hypotheses $depth
+               (- $fuel 1) (cons-atom (AiProp:TermArgument $goal) $operations)))
+            ((IMP $left $right)
+             (ai-math:prop-use $context $right $proof $goal $hypotheses $depth
+               (- $fuel 1) (cons-atom (AiProp:ProofArgument $left) $operations)))
+            ($other AiProp:NoProof)))))))
+(= (ai-math:prop-apply-operations $context $proof $hypotheses $depth $operations)
+   (if (== $operations ()) (AiProp:Built $proof)
+     (case (car-atom $operations)
+       (((AiProp:TermArgument $term)
+         (ai-math:prop-apply-operations $context (PTMAP $proof $term) $hypotheses $depth (cdr-atom $operations)))
+        ((AiProp:ProofArgument $type)
+         (case (ai-math:prop-prove-in $context $type $hypotheses (+ $depth 1))
+           (((AiProp:Built $argument)
+             (ai-math:prop-apply-operations $context (PPFAP $proof $argument) $hypotheses $depth (cdr-atom $operations)))
+            ($other $other))))))))
+(= (ai-math:prop-check $synth $itp $declaration $budget)
+   (case $declaration
+     (((Decl $i THM $name $hash $statement $body $ss $ds $fs)
+       (case (ai-math:prop-prove $synth $statement)
+         (((AiProp:Built $proof)
+           (case (ai-math:lean-term (index-atom $synth 2) (AiLean:Scope () () ()) Pf $proof)
+             (((AiLean:Text $text)
+               (let $script (str:concat "exact " $text)
+                 (AiProp:Result $name $proof $script (ai-math:itp-check-with $itp $name $script $budget))))
+              ($other (AiProp:TranslationRequest $name $other)))))
+          ($other (AiProp:Result $name AiProp:NoProof "" $other)))))
+      ($other (AiProp:Fault not-a-theorem)))))

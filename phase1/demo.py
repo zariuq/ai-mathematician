@@ -131,7 +131,7 @@ def main():
 
     # --------------------------------------------------- stage 2: Vampire
     print("\n" + BAR)
-    print("[2] VAMPIRE  (phase1/atp.py)  -- an external prover, UNTRUSTED")
+    print("[2] VAMPIRE  (phase1/atp.py)  -- an external prover; Lean checks its result")
     print(BAR)
     rec = None
     if record:

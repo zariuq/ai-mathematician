@@ -83,6 +83,7 @@ def make_report(path, indices, probes):
    (let* (($goal (index-atom $decls $i)) ($earlier (list:take $i $decls)))
      (Goal $i
        (ai-math:rank $search $i)
+       (ai-math:rank-packed-default $search $i $goal 32)
        (ai-math:knn $search (ai-math:declaration-symbols $goal) $earlier 24)
        (ai-math:naive-bayes $search $goal $earlier 10.0 -4.0 1.0)
        (ai-math:diverse-slices $search $i 5 3)
@@ -146,8 +147,9 @@ def compare_report(report, search, decls, indices):
         checks += 1
     assert len(goals) == len(indices)
     for row, index in zip(goals, indices):
-        tag, observed_index, ranked, knn, bayes, slices, named, tweaked, prepared, dense = row
+        tag, observed_index, ranked, packed, knn, bayes, slices, named, tweaked, prepared, dense = row
         assert tag == "Goal" and int(observed_index) == index
+        assert packed == ranked, ("packed default rank differs", index, packed, ranked)
         checks += score_pairs(ranked, search.rank(index), f"rank/{index}", ranked=True)
         checks += score_pairs(knn, list(search._knn(set(decls[index].stmt_syms), index).items()), f"knn/{index}")
         checks += score_pairs(bayes, list(search._nb(decls[index], index).items()), f"bayes/{index}")
@@ -209,18 +211,22 @@ def compare_unit_counts(binary):
             for weight in (1.0, 0.1, 0.5, 2.0):
                 for key in ('Uses', '(Feature "even")', '(Feature "missing")'):
                     policy = 'AiTraining:Unit' if weight == 1.0 else f'(AiTraining:Weighted {weight})'
-                    queries.append(f'(ai-math:training-evidence-count $ledger {key} {cutoff} {policy})')
+                    queries.append(
+                        f'(ai-math:training-evidence-count '
+                        f'$training 0 {key} {cutoff} {policy})'
+                    )
                     total = 0
                     for ordinal, source, kind in rows:
                         if (cutoff == 'All' or source < cutoff) and (
                                 key == 'Uses' or ('even' in key and ordinal % 2 == 0)):
                             total += weight if kind == 'Self' else 1.0
                     expected.append(total)
-        request = f'''(let* (($ledger (new-space))
+        request = f'''(let* (($training (new-space))
           ($stored (map-atom {literal} $entry (let ($event $origin $role) $entry
-            (let $used (add-atom $ledger (AiTrainingUse $event $origin $role))
+            (let $used (add-atom $training (AiTrainingUse 0 $event $origin $role))
               (if (== (% $event 2) 0)
-                (add-atom $ledger (AiTrainingFeature "even" $event $origin $role)) ()))))))
+                (add-atom $training
+                  (AiTrainingFeature 0 "even" $event $origin $role)) ()))))))
           (PrefixCase {' '.join(queries)}))'''
         # Each independent expression gets its own logical variable names.
         requests.append(re.sub(r'\$([A-Za-z-]+)', lambda match: match[0] + str(seed), request))
@@ -231,14 +237,90 @@ def compare_unit_counts(binary):
     return len(expected)
 
 
+def compare_score_orders(binary):
+    """Bulk sorting preserves occurrence ties and the authored fallback."""
+    rng = random.Random(2911)
+    scalars = ('-0.0', '0.0', '0', '-2', '1.25', '3.0',
+               '9007199254740992', '9007199254740993',
+               '9223372036854775807', '9223372036854775809')
+    requests = []
+    ordinal_requests = []
+    for size in (0, 1, 2, 7, 32, 65):
+        for _ in range(8):
+            rows = '(' + ' '.join(
+                f'("name-{rng.randrange(5)}" {rng.choice(scalars)})'
+                for _ in range(size)) + ')'
+            requests.append(f'(OrderCase (ai-math:sort-scores {rows}) '
+                            f'(test:score-order-reference {rows}))')
+            for cutoff in (0, 1, 4, 8):
+                case_id = len(ordinal_requests)
+                # Repeated names use their least source ordinal, not
+                # insertion order. A sixth name has no source occurrence.
+                ordinal_rows = '(' + ' '.join(
+                    f'("name-{rng.randrange(6)}" {rng.choice(scalars)})'
+                    for _ in range(size)) + ')'
+                order = f'$order{case_id}'
+                ordinal_requests.append(f'''(let* (({order} (new-space))
+                  ($inserted{case_id} (map-atom
+                    (("name-0" 3) ("name-1" 1) ("name-2" 6)
+                     ("name-3" 0) ("name-4" 4) ("name-0" 2)) $record{case_id}
+                    (let ($name{case_id} $ordinal{case_id}) $record{case_id}
+                      (add-atom {order} (AiNameOrder $name{case_id} $ordinal{case_id}))))))
+                  (OrdinalOrderCase
+                    (ai-math:sort-scores-with-order {order} {cutoff} {ordinal_rows})
+                    (test:score-order-source-reference {order} {cutoff} {ordinal_rows})))''')
+    reference = '''
+(= (test:score-order-reference $entries)
+   (let (TestSort $count $rows)
+     (foldl-atom $entries (TestSort 0 ()) $state $entry
+       (let (TestSort $index $rows) $state
+         (let $key (AiSortKey (- 0.0 (index-atom $entry 1)) $index)
+           (TestSort (+ $index 1) (cons-atom ($key $entry) $rows)))))
+     (unkey-atom (sort-atom $rows))))
+(= (test:score-order-source-reference $order $cutoff $scores)
+   (unkey-atom (sort-atom
+     (map-atom
+       (filter-atom $scores $entry
+         (let $ordinal (ai-math:name-order-get $order (car-atom $entry))
+           (if (== $ordinal NoName) False (< $ordinal $cutoff))))
+       $entry
+       (let* ((($name $score) $entry)
+              ($ordinal (ai-math:name-order-get $order $name)))
+         ((AiSortKey (- 0.0 $score) $ordinal) $entry))))))
+'''
+    report = execute(binary, prelude() + reference +
+                     '!(ScoreOrders ' + ' '.join(requests) + ')')
+    assert report[0] == 'ScoreOrders' and len(report[1:]) == len(requests)
+    for row in report[1:]:
+        assert row[0] == 'OrderCase' and row[1] == row[2], row
+    # Keep each -e argument below the platform's per-argument size bound.
+    for start in range(0, len(ordinal_requests), 16):
+        batch = ordinal_requests[start:start + 16]
+        ordinal_report = execute(binary, prelude() + reference +
+            '!(OrdinalScoreOrders ' + ' '.join(batch) + ')')
+        assert ordinal_report[0] == 'OrdinalScoreOrders' and len(ordinal_report[1:]) == len(batch)
+        for row in ordinal_report[1:]:
+            assert row[0] == 'OrdinalOrderCase' and row[1] == row[2], row
+    return len(requests) + len(ordinal_requests)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cetta", required=True, type=Path)
     parser.add_argument("--oracle-dir", type=Path, default=oracle_directory())
     parser.add_argument("--corpus", type=Path)
     parser.add_argument("--check-recall", action="store_true")
+    parser.add_argument("--exact-score-bits", action="store_true",
+                        help="Compare every returned ranking score's binary64 value with the pinned oracle")
     args = parser.parse_args()
+    if args.exact_score_bits and not args.check_recall:
+        parser.error('--exact-score-bits requires --check-recall')
     binary = Path(shutil.which(str(args.cetta)) or args.cetta).resolve()
+    binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
+    search_source = ROOT / "phase1/search.metta"
+    search_sha256 = hashlib.sha256(search_source.read_bytes()).hexdigest()
+    library_source = ROOT / "phase1/library.metta"
+    library_sha256 = hashlib.sha256(library_source.read_bytes()).hexdigest()
     example = ROOT / "tests/metta/ai_mathematician_search.metta"
     expected_controls = len(re.findall(r"^!\(test\b", example.read_text(), re.M))
     result = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(example)],
@@ -248,6 +330,7 @@ def main():
     checks = expected_controls
     checks += compare_training_sums(binary)
     checks += compare_unit_counts(binary)
+    checks += compare_score_orders(binary)
     entry = ROOT / "phase1/search_main.metta"
     data = ROOT / "tests/fixtures/ai_mathematician_library.sexpr"
     cli = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(entry), str(data)],
@@ -296,16 +379,27 @@ def main():
                            (> (size-atom (ai-math:declaration-dependencies $decl)) 0)))
                       $decl
                       (RankAt (ai-math:declaration-index $decl)
-                        (ai-math:entry-names
-                          (ai-math:rank $search
-                            (ai-math:declaration-index $decl) 64))))))''')
+                        (ai-math:rank $search
+                          (ai-math:declaration-index $decl) 64)))))''')
                 assert report[0] == "AllRankings" and len(report[1]) == len(selected)
                 rankings = {}
+                bit_differences = 0
+                largest_score_difference = 0.0
                 for row, declaration in zip(report[1], selected):
-                    tag, index, names = row
+                    tag, index, pairs = row
+                    names = [pair[0] for pair in pairs]
                     assert tag == "RankAt" and int(index) == declaration.index
-                    expected = [name for name, _ in search.rank(declaration.index, limit=64)]
+                    expected_pairs = search.rank(declaration.index, limit=64)
+                    expected = [name for name, _ in expected_pairs]
                     assert names == expected, (declaration.index, names[:8], expected[:8])
+                    for (name, observed), (_, wanted) in zip(pairs, expected_pairs, strict=True):
+                        assert math.isfinite(float(observed)), (declaration.index, name, observed)
+                        largest_score_difference = max(largest_score_difference, abs(float(observed) - wanted))
+                        bit_differences += float(observed).hex() != float(wanted).hex()
+                        if args.exact_score_bits:
+                            assert float(observed).hex() == float(wanted).hex(), (
+                                declaration.index, name, 'score bits', float(observed).hex(), float(wanted).hex())
+                        checks += 1
                     rankings[declaration.index] = names
                     checks += len(names) + 1
                 for k in (8, 16, 32, 64):
@@ -313,9 +407,16 @@ def main():
                     assert all(hit <= d.proof_deps for hit, d in zip(hits, selected))
                     checks += len(hits)
                 print(f"SearchRecall {len(selected)} theorems 0 ranking differences")
+                print(f"SearchScoreRepresentations {bit_differences} binary64 differences; "
+                      f"largest_score_difference={largest_score_difference:.17g}; ranked selections checked")
     elif args.corpus or args.check_recall:
         parser.error("corpus comparisons require --oracle-dir")
-    print(f"BinarySHA256 {hashlib.sha256(binary.read_bytes()).hexdigest()}")
+    assert hashlib.sha256(binary.read_bytes()).hexdigest() == binary_sha256, "binary changed during qualification"
+    assert hashlib.sha256(search_source.read_bytes()).hexdigest() == search_sha256, "search source changed during qualification"
+    assert hashlib.sha256(library_source.read_bytes()).hexdigest() == library_sha256, "library source changed during qualification"
+    print(f"BinarySHA256 {binary_sha256}")
+    print(f"SearchSHA256 {search_sha256}")
+    print(f"LibrarySHA256 {library_sha256}")
     print(f"AiMathematicianSearch {checks} 0")
 
 

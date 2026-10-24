@@ -18,9 +18,9 @@ import time
 from check_ai_mathematician_library import ROOT, quote, read_atoms
 
 
-def program(corpus, search_source, atp_source, component, sample_goals=0):
+def program(corpus, search_source, atp_source, component, sample_goals=0, library_source=None):
     source = (
-        f'!(import! &self {quote(ROOT / "phase1/library.metta")})\n'
+        f'!(import! &self {quote(library_source or ROOT / "phase1/library.metta")})\n'
         '!(import! &self (library list))\n'
         '!(import! &self system)\n'
         f'!(import! &self {quote(search_source)})\n'
@@ -30,7 +30,8 @@ def program(corpus, search_source, atp_source, component, sample_goals=0):
                    f'!(import! &self {quote(atp_source)})\n')
         # The primitive map is fixed input data, not timed Python translation.
         from check_ai_mathematician_atp import reference
-        library, oracle = reference(ROOT / "phase1")
+        from python_oracle import oracle_directory
+        library, oracle = reference(oracle_directory())
         translator = oracle.THF(library.load(str(corpus)))
         oracle.attach_prim_indices(translator, str(corpus))
         prims = "(" + " ".join(f"({key} {quote(name)})"
@@ -56,7 +57,7 @@ def program(corpus, search_source, atp_source, component, sample_goals=0):
     else:
         prepare = "(ai-math:search $decls)"
         work = "(size-atom (ai-math:search-facts $context))"
-        if component in ("recall", "search-stages"):
+        if component in ("recall", "recall-reference", "search-stages"):
             # Use operations shared by both source versions, including the
             # baseline before search-recall was introduced.
             selected = '(ai-math:search-facts $context)'
@@ -75,6 +76,27 @@ def program(corpus, search_source, atp_source, component, sample_goals=0):
        ($samples (ai-math:recall-samples $context SAMPLED_FACTS $cutoffs)))
   (RecallSummary (size-atom $samples) (ai-math:recall-columns $samples $cutoffs 0)))
 """.replace('SAMPLED_FACTS', selected)
+            if component == "recall-reference":
+                work = """
+(let* (($cutoffs (8 16 32 64))
+       ($theorems (filter-atom SAMPLED_FACTS $decl
+         (and (== (ai-math:declaration-kind $decl) THM)
+              (> (size-atom (ai-math:declaration-dependencies $decl)) 0))))
+       ($maximum (foldl-atom $cutoffs 0 $best $k (if (> $k $best) $k $best)))
+       ($samples (map-atom $theorems $decl
+         (let* (($index (ai-math:declaration-index $decl))
+                ($goal (ai-math:search-goal $context $index))
+                ($truth (ai-math:declaration-dependencies $decl))
+                ($ranked (ai-math:entry-names
+                  (ai-math:rank-for $context $index $goal $maximum ()))))
+           (map-atom $cutoffs $k
+             (let $got (size-atom
+                   (intersection-atom (list:take $k $ranked) $truth))
+               (AiRecall $k (/ $got (size-atom $truth))
+                 (if (== $got (size-atom $truth)) 1 0))))))))
+  (RecallSummary (size-atom $samples)
+    (ai-math:recall-columns $samples $cutoffs 0)))
+""".replace('SAMPLED_FACTS', selected)
             if component == "search-stages":
                 work = """
 (let $goals (map-atom (filter-atom SAMPLED_FACTS $fact
@@ -82,11 +104,10 @@ def program(corpus, search_source, atp_source, component, sample_goals=0):
                             (not (== (ai-math:declaration-dependencies $fact) ()))))
                      $fact (ai-math:declaration-index $fact))
   (SearchStages
-    (map-atom (Bayes KNN Overlap Background Rank) $stage
+    (map-atom (Bayes KNN Overlap Background ReferenceRank PackedRank) $stage
       (let* (($begin (system:monotonic-ns))
              ($rows (foldl-atom $goals 0 $rows $index
                       (let* (($goal (ai-math:search-goal $context $index))
-                             ($earlier (ai-math:search-before $context $index))
                              ($answer (case $stage
                                ((Bayes (ai-math:naive-bayes-prefix $context $goal $index 10.0 -4.0 1.0))
                                 (KNN (ai-math:knn-prefix $context
@@ -94,11 +115,17 @@ def program(corpus, search_source, atp_source, component, sample_goals=0):
                                 (Overlap (ai-math:overlap-contributions $context
                                            (ai-math:declaration-symbols $goal) $index))
                                 (Background
-                                  (foldl-atom $earlier () $out $fact
+                                  (foldl-atom (ai-math:search-before $context $index)
+                                    () $out $fact
                                     (union-atom $out
                                       (ai-math:fact-background-contributions
                                         $context $goal $index $fact 0.0 1.0))))
-                                (Rank (ai-math:rank $context $index 64))))))
+                                (PackedRank
+                                  (ai-math:rank-packed-default
+                                    $context $index $goal 64))
+                                (ReferenceRank
+                                  (ai-math:rank-for
+                                    $context $index $goal 64 ()))))))
                         (+ $rows (size-atom $answer)))))
              ($end (system:monotonic-ns)))
         (SearchStage $stage (- $end $begin) $rows)))))
@@ -141,7 +168,8 @@ def measure(binary, source, output, stem):
     if isinstance(result, list) and result and result[0] == "AiMathBenchmarkFault":
         raise RuntimeError(f"benchmark did not prepare its context: {stem}")
     return dict(load_ns=int(load_ns), prepare_ns=int(prepare_ns), work_ns=int(work_ns),
-                whole_ns=whole_ns, user_s=usage.ru_utime, system_s=usage.ru_stime,
+                whole_ns=whole_ns, whole_scope="parent_process_start_to_exit",
+                user_s=usage.ru_utime, system_s=usage.ru_stime,
                 peak_rss_kib=usage.ru_maxrss, result=result)
 
 
@@ -161,8 +189,9 @@ def main():
     parser.add_argument("--cetta", required=True, type=Path)
     parser.add_argument("--corpus", required=True, type=Path)
     parser.add_argument("--search-source", type=Path, default=ROOT / "phase1/search.metta")
+    parser.add_argument("--library-source", type=Path, default=ROOT / "phase1/library.metta")
     parser.add_argument("--atp-source", type=Path, default=ROOT / "phase1/atp.metta")
-    parser.add_argument("--component", choices=("setup", "recall", "thf", "search-stages"), default="recall")
+    parser.add_argument("--component", choices=("setup", "recall", "recall-reference", "thf", "search-stages"), default="recall")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--sample-goals", type=int, default=0,
                         help="Evenly sample recall goals; zero measures all eligible goals")
@@ -173,19 +202,25 @@ def main():
     if args.sample_goals < 0:
         parser.error("--sample-goals must be nonnegative")
     binary = Path(shutil.which(str(args.cetta)) or args.cetta).resolve()
-    corpus, search_source, atp_source = (path.resolve() for path in
-                                        (args.corpus, args.search_source, args.atp_source))
+    corpus, search_source, atp_source, library_source = (path.resolve() for path in
+        (args.corpus, args.search_source, args.atp_source, args.library_source))
     if not corpus.is_file():
         parser.error("--corpus must name an existing file")
     metadata = dict(binary_sha256=digest(binary), corpus_sha256=digest(corpus),
                     search_sha256=digest(search_source), atp_sha256=digest(atp_source),
+                    library_sha256=digest(library_source),
                     component=args.component, sample_goals=args.sample_goals)
-    source = program(corpus, search_source, atp_source, args.component, args.sample_goals)
+    source = program(corpus, search_source, atp_source, args.component, args.sample_goals, library_source)
     args.output.mkdir(parents=True, exist_ok=True)
     observations = []
     for index in range(args.repeat):
         stem = f"{args.component}-{index}"
         observation = dict(metadata, **measure(binary, source, args.output, stem))
+        if any(digest(path) != metadata[key] for path, key in (
+                (binary, 'binary_sha256'), (corpus, 'corpus_sha256'),
+                (search_source, 'search_sha256'), (atp_source, 'atp_sha256'),
+                (library_source, 'library_sha256'))):
+            raise RuntimeError('benchmark input changed during measurement')
         if observations and semantic_result(observation["result"]) != semantic_result(observations[0]["result"]):
             raise RuntimeError("repeated benchmark changed its answer")
         observations.append(observation)

@@ -9,7 +9,7 @@ import sys
 
 from check_ai_mathematician_library import ROOT, quote
 from check_ai_mathematician_llm import execute, prelude
-from python_oracle import UPSTREAM_V7, oracle_directory
+from python_oracle import UPSTREAM_V9, oracle_directory
 from check_ai_mathematician_search import (CanonicalSet, execute as search_execute,
     prelude as search_prelude, reference_decls, score_pairs)
 
@@ -30,7 +30,7 @@ def main():
     parser.add_argument('--cetta', type=Path, required=True)
     args = parser.parse_args()
     binary = Path(shutil.which(str(args.cetta)) or args.cetta).resolve()
-    directory = oracle_directory(UPSTREAM_V7)
+    directory = oracle_directory(UPSTREAM_V9)
     sys.path.insert(0, str(directory))
     strategy, llm = load('prover', directory), load('llm', directory)
     output = ROOT / '.cetta/upstream'

@@ -51,6 +51,7 @@ def main():
         sample_goals=args.sample_goals,
         load_ns=loaded-started, prepare_ns=prepared-loaded,
         work_ns=finished-prepared, whole_ns=finished-started,
+        whole_scope='load_prepare_work',
         user_s=usage.ru_utime-cpu_start.ru_utime,
         system_s=usage.ru_stime-cpu_start.ru_stime,
         peak_rss_kib=usage.ru_maxrss, result=result)), flush=True)

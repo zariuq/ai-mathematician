@@ -17,12 +17,16 @@
     "phase1/itp.metta" "phase1/proof_strategy.metta" "phase1/induction.metta" "phase1/smt_bridge.metta"
     "formats/SMTLibExport.module"
     "phase1/induction_prover.metta" "phase1/prover.metta" "phase1/experiment.metta"
-    "phase1/itp_driver.lean" "phase1/itp_guard.lean" "lib/CettaITPGuard.lean"
-    "lib/CettaITP.lean" "lib/CettaProposalView.lean" "lib/CettaProofTactics.lean" "lib/Bridge.lean" "lib/MegLib.lean"
     "phase1/experiment_workers.metta" "phase1/experiment_worker_main.metta"
     "phase1/workers_main.metta" "phase1/workers_driver.metta" "lean-toolchain"
     "tools/duper-env/lakefile.toml" "tools/duper-env/lake-manifest.json"
     "tools/duper-env/lean-toolchain"))
+(= (ai-math:run-checker-files)
+   (let $native (== (system:getenv-or-default "CETTA_ITP_RUNTIME" "interpreted") "native")
+     (union-atom
+       (if $native (".cetta/lean-native/itp-guard" ".cetta/lean-native/itp-worker") ())
+       (map-atom ("MegLib" "Bridge" "CettaProofTactics" "CettaITP" "CettaProposalView" "CettaITPGuard") $module
+         (str:join "" ((if $native ".cetta/lean-native/lib/" "lib/") $module ".olean"))))))
 (= (ai-math:run-descriptor $root $corpus $options $toolchain)
    (let* (($corpus-text (fs:read-text $corpus))
           ($sources (map-atom (ai-math:run-source-files) $path
@@ -33,9 +37,16 @@
             (case $source (((AiRun:Fault $why $detail) true) ($other false))))))
      (if (== (get-type $corpus-text) String)
        (if (== $failed ())
-         (let $descriptor (AiRun:Descriptor "ai-math.run.v1" "petta@1.0.6"
-                (str:sha256 $corpus-text) $sources $options $toolchain)
-           (AiRun:Identity (str:sha256 (repr $descriptor)) $descriptor))
+         (case (ai-math:itp-complete-process-text
+                 (proc:run (union-atom ("sha256sum" "--") (ai-math:run-checker-files)) ((cwd $root))))
+           (((AiITP:ProcessText $artifacts)
+             (let* (($artifact-rows (map-atom
+                       (filter-atom (str:split "\n" $artifacts) $line (not (== $line ""))) $line
+                       (let ($hash $file) (str:split "  " $line) ($file $hash))))
+                    ($descriptor (AiRun:Descriptor "ai-math.run.v1" "petta@1.0.6"
+                       (str:sha256 $corpus-text) (union-atom $sources $artifact-rows) $options $toolchain)))
+               (AiRun:Identity (str:sha256 (repr $descriptor)) $descriptor)))
+            ($other (AiRun:Fault checker-artifacts $other))))
          (car-atom $failed))
        (AiRun:Fault corpus-read $corpus-text))))
 (= (ai-math:run-header (AiRun:Identity $key $descriptor))

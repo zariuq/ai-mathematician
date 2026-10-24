@@ -128,6 +128,16 @@
             ($other $other)))))
       ($other (AiInd:UnknownGoal $target $other)))))
 
+; Later attempts can expose a fault even when an earlier stage exhausted its
+; budget. Recompute the aggregate from all attempts; keep completed coverage.
+(= (ai-math:induction-outcome $previous $all)
+   (case $previous
+     (((AiProver:NotProved (AiProver:Coverage $stages))
+       (ai-math:prover-outcome $all (union-atom $stages (induction))))
+      ((AiProver:Unfinished $evidence)
+       (ai-math:prover-outcome $all (induction)))
+      ($other $other))))
+
 (= (ai-math:induction-after $context $target $direct)
    (case ($context $direct)
      ((((AiProver $search $thf $itp $vampire $options)
@@ -157,9 +167,6 @@
                 ($winner (ai-math:prover-winner $extra)))
            (AiProver:Result $name $index (AiProver:Hints $sets $defs $goal-defs $status $trace) $all
              (if (== $winner AiProver:NoWinner)
-               (case $outcome
-                 (((AiProver:NotProved (AiProver:Coverage $stages))
-                   (ai-math:prover-outcome $all (union-atom $stages (induction))))
-                  ($other $other))) $winner)))
+               (ai-math:induction-outcome $outcome $all) $winner)))
          $direct))
       ($other $direct))))

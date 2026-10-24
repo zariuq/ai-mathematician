@@ -8,8 +8,9 @@ directly in MeTTa:
 Quick start: copy cetta-run.example.json to cetta-run.json, set its corpus
 and output paths, then:
 
+  python3 tests/acquire_ai_mathematician_vampire.py
   make prepare-cetta-itp-native prepare-cetta-duper
-  make run-cetta CETTA=cetta VAMPIRE=vampire RUN_CONFIG=cetta-run.json
+  make run-cetta CETTA=cetta RUN_CONFIG=cetta-run.json
 
 Set mode to Resume in the same configuration to continue. For a different
 corpus, first regenerate its Lean library as described under "Corpus
@@ -23,13 +24,13 @@ Individual components are also available directly:
 
   cetta --lang petta@1.0.6 phase1/library_main.metta data/corpus.sexpr
   cetta --lang petta@1.0.6 phase1/search_main.metta data/corpus.sexpr
-  cetta --lang petta@1.0.6 phase1/atp_main.metta data/corpus.sexpr andI tools/vampire
+  cetta --lang petta@1.0.6 phase1/atp_main.metta data/corpus.sexpr andI .cetta/tools/vampire-5.1.0-linux-x64/vampire
 
 Build the checked Lean library and the fixed proof runner once:
 
   make prepare-cetta-itp
   cetta --no-results --lang petta@1.0.6 phase1/itp_main.metta data/corpus.sexpr orIL proof.tactic
-  cetta --no-results --lang petta@1.0.6 phase1/prover_main.metta data/corpus.sexpr orIL tools/vampire
+  cetta --no-results --lang petta@1.0.6 phase1/prover_main.metta data/corpus.sexpr orIL .cetta/tools/vampire-5.1.0-linux-x64/vampire
 
 proof.tactic contains tactics only, for example:
 
@@ -53,9 +54,10 @@ may also be invoked by its full path from another working directory.
 Dependencies
 ------------
 
-Use a CeTTa build containing the fs, str, proc, system, json, list and lib_tptp
-libraries, the pinned official TPTP reader snapshot and its authored printer
-assets. Keep those assets with the runtime, not with this application.
+Use a CeTTa build containing the fs, str, proc, system, json, list, tensor,
+postings and lib_tptp libraries, the pinned official TPTP reader snapshot and
+its authored printer assets. Keep those assets with the runtime, not with
+this application.
 lib_tptp locates its default assets through the runtime's library root;
 explicit reader-snapshot and printer-root overrides remain available.
 The port needs neither Python nor Prolog at runtime.
@@ -76,6 +78,10 @@ Scope and code map
 Phase 1 is the proving application: corpus preparation, learned premise
 selection, THF/Vampire advice, guarded Lean reconstruction (including
 induction/Duper), resumable experiments and optional LLM/DSP proposals.
+The research algorithms also run natively: propositional term synthesis,
+incremental beam search, recursive local-lemma decomposition, extended Duper
+strategies, oracle proof chains, recursive hybrid induction, Zipperposition,
+the Python embedding recipe, and proof/witness/recall diagnostics.
 The corresponding .metta files live beside the unchanged Python reference
 modules in phase1/. Fixed Lean runner/checker modules live in lib/.
 
@@ -172,8 +178,10 @@ itp_runtime selects "native" or "interpreted". The example and make run-cetta
 use native; the definition-only library otherwise defaults to interpreted.
 CETTA_ITP_RUNTIME supplies a default when the configuration omits the field.
 Native preparation builds the fixed guard and tactic worker, not proposed
-proofs. Their source manifest and Lean installation are checked once per
-prepared context; a stale bundle requests preparation instead of executing.
+proofs. Make tracks their build dependencies; runtime checks the Lean
+installation and prepared artifacts, without hashing Lean source files.
+Experiment identity binds the compiled checker/library artifacts. Proof
+acceptance always requires a fresh independent check of the actual statement.
 make test-cetta-itp-native runs the same acceptance/rejection controls on it.
 The POSIX/Linux coordinator uses flock, mkdir, sha256sum and /proc/self/exe.
 
@@ -550,7 +558,9 @@ mode first requests an informal argument, then a Lean outline whose routine
 steps can use `by ai_math_auto [definitions]`. This closing tactic must
 produce a proof or fail; no textual admission replacement is used. Both
 modes use the same guarded Lean acceptance path and actual imported types.
-Prompts expose earlier fact types and definition values, not theorem proofs.
+By default prompts expose earlier fact types and definition values, not
+theorem proofs. An explicit example pool can additionally supply accepted
+scripts of earlier theorems, as described below.
 
 For a JSONL baseline, invoke:
 
@@ -580,6 +590,30 @@ notes at its token limit. That continuation and every retry reserve their
 own paid-call slots; a second length-only response does not recurse again.
 timeout_ms selects the HTTP deadline (default 600000). Formatting repairs
 and deterministic closers use no model calls and still pass the full checker.
+
+temperature (0 through 2), max_tokens (default 16000), and retries (default 4)
+are explicit configuration fields. Without a temperature field,
+LLM_TEMPERATURE is used, falling back to 0.2. Provider-specific JSON fields
+can be supplied through ai-math:llm-chat-with; duplicate fields and overrides
+of model, messages, token budget or temperature are rejected before a call
+reservation. Those fields belong to the client configuration.
+
+example_pool names a JSON object mapping theorem names to tactic scripts;
+examples selects the maximum number per prompt (default 0). The pool is
+advice, not a certificate. Only strictly earlier theorems with shared goal
+symbols are selected. Each selected script is independently checked at its
+own source cutoff; a rejected example stops the proposal before an HTTP
+reservation. Statements come from Lean, not strings in the pool. The same
+checked example context is available to direct and DSP modes. Library
+clients use (examples ((AiLLM:Example name script) ...)) and example-count.
+
+Feedback for invented names suggests at most four earlier declarations per
+name, exposing their types only. Its character-bigram spelling heuristic
+need not choose the same hints as Python's difflib; neither is evidence of
+a proof. Application-error feedback also gives source-eligible signatures.
+ai-math:llm-usage-summary reports reserved calls and recorded prompt/completion
+tokens under the same ledger lock. Incomplete calls remain spent reservations;
+malformed or torn ledgers cannot produce a successful summary.
 
 proof_advice optionally reruns the configured Vampire premise slices and
 includes its TPTP refutation as guidance. It is off by default. The shared
@@ -652,8 +686,209 @@ server and fake credentials; pass HTTP_CETTA to exercise its HTTP path. No
 test makes a paid model call. These are conformance/acceptance checks, not
 formal proofs of application translation or full-corpus discovery parity.
 
+Reproducible application qualification
+-------------------------------------
+
+The Linux x86-64 solver acquisition command verifies the official Vampire
+5.1.0 archive checksum and installs it in a versioned application cache:
+
+  python3 tests/acquire_ai_mathematician_vampire.py
+  make prepare-cetta-itp-native prepare-cetta-duper
+  make qualify-cetta CETTA=/path/to/cetta CETTA_SOURCE=/path/to/CeTTa \
+    CORPUS=data/corpus.sexpr \
+    LEAN=/path/to/lean
+
+Use the pinned Lean 4.34.0 executable. Duper is pinned by its existing package
+manifest. The runtime configuration is core, HTTP and GMP enabled, Prolog
+disabled. Qualification requires real solver/kernel/isolation capabilities;
+it does not silently skip them. Model-dependent workflows use local fixtures.
+No paid model requests are part of qualification.
+
+Port acceptance compares observations at the implementation boundaries:
+loaded declarations, premise selections, translations, proposed tactics,
+controller decisions and independently checked proof results. Fixed solver
+responses and failure fixtures exercise control paths without spending a
+fresh search budget on each case. Small real solver/kernel runs exercise the
+actual integration. Existing accepted proof scripts can be checked directly;
+their discovery histories do not have to be repeated.
+
+During development, run the focused test-cetta target for the mechanism being
+changed and the ordinary engine tests at a checkpoint. qualify-cetta is the
+thorough port-readiness command. Reuse its valid dependency receipts rather
+than rerunning unchanged checks. Exhaustive proof rediscovery is not a port
+acceptance requirement.
+
+The separate qualification command includes every ranked THF slice, every
+published script and complete score observations. Its input manifest and per-gate journal live under
+.cetta/qualification. QUALIFICATION_RESUME=1 reuses a passed gate only when
+its dependencies and log are unchanged. Code may continue to evolve; affected
+gates run again with a new input receipt. Ordinary engine make test is not expanded.
+
+Ranked selections are compared with pinned PythonV4. Score bits are recorded
+separately; an explicit reference can check same-schedule changes. Prepared union
+totals use total(A) + total(B) - shared(A,B), whereas Python sums A union B.
+Those numerical schedules can differ in their last bits. The score-schedule
+gate must not be described as bitwise equivalence to Python. Sparse Bayes
+also combines a missing-feature baseline with sparse corrections; its
+rounding can reorder close Bayes scores and change the final rank bonus.
+Numerical differences are reported rather than requiring bitwise identity
+between equivalent real-valued scoring formulas. Selected-premise differences
+must be investigated, and every claimed proof passes the independent checker.
+Full discovery is a separate, optional research experiment measuring recall
+under a search policy and resource budget. Its results are not required for
+port acceptance, and port conformance does not imply equal discovery recall.
+
+For continued development after a successful qualification, stage the
+application changes and use the evidence-reusing functionality gate:
+
+  make qualify-cetta-functionality QUALIFICATION_BASELINE=.cetta/qualification
+
+tests/phase1_functionality.json lists the Phase 1 capabilities, native entry
+points, pinned public Python interfaces and their evidence gates. The command
+checks the earlier logs and receipts, exact tools, corpus, runtime assets,
+published witnesses. MeTTapedia's source index is not an application input;
+its formal-library builds are qualified separately in that repository. It refreshes
+only classified bounded checks affected by the changes. Unknown runtime
+changes fail explicitly instead of launching broad tests or a solver sweep.
+The result includes the staged application source manifest and per-capability
+evidence, distinguishing reused checks from new ones. --audit-only on
+tests/qualify_ai_mathematician_functionality.py lists work without running it.
+The qualified native executable is identified by hash; reusing its evidence
+does not qualify a rebuild from a newer engine checkout.
+
+The capability list covers both the Search/ATP/Lean/LLM/DSP application and
+the distinct algorithms in phase1/experiments at its pinned reference. Every
+experiment is classified as an algorithm or a recipe over these operations.
+Historical try_*/rebuild_* command-line scripts are not copied one for one;
+their strategy combinations use the native operations and shared runners.
+Phase 2/3, model-quality evaluation and full discovery recall remain separate.
+
+Native research workflows
+-------------------------
+
+Copy cetta-research.example.json, choose explicit goals and an output path,
+then run:
+
+  cetta --no-results --lang petta@1.0.6 phase1/research_main.metta research.json
+
+Proof-producing modes are prop, incremental, decompose, hybrid, chain,
+duper2 and zipper. All final candidates pass the independent original-target
+checker. Local subgoal receipts never replace this check. Proof journals use
+the ordinary checked resume path: set resume=true with the same configuration
+to recheck saved successes and retry unfinished work. Exit 0 means a completed
+run (including completed not-proved results), 3 unfinished work, and 2 a fault
+or invalid request. Empty or ambiguous evaluator results fail explicitly.
+
+Options use underscore names in JSON. Common controls include budget as
+[wall-time-ms, heartbeats, recursion-depth], use_duper as false, true or
+"Auto", stages, candidate_limit and premise_limit. Incremental adds max_depth,
+max_probes, beam, k, chunk_size and deadline_ms. Decomposition adds depth,
+repair_rounds, lemma_rounds and max_claims. Hybrid adds splits, slices and
+smt_slices; direct=true permits a direct reconstruction before splitting.
+Zipperposition uses options.zipper, options.zipper_mode and options.seconds.
+Research premise advice uses the ordinary Vampire slices by default. Set
+slices=[] explicitly for search-only hints; slices, seconds and definition_depth
+configure the same advice machinery as the core prover. Used definitions and
+distinct premise sets are retained. A timeout/fault in one derived candidate
+does not hide a later checked success; absent success, those failures remain
+unfinished/fault outcomes. Native whole-batch deadlines retry candidates
+individually through the existing bounded retry path.
+Explicit Duper use requires the prepared pinned Duper environment; Auto falls
+back to core when it is unavailable. Bounded rejection, cancellation and
+operational failure are distinct outcomes, not successful completion tags.
+The explicitly selected duper2 mode always requires and records the Duper
+profile; use_duper controls its inclusion in mixed reconstruction cascades.
+
+Decompose requires an explicit model, endpoint, call_cap and ledger. The API
+key comes from LLM_API_KEY. Every request reserves budget first. Qualification
+uses only loopback fixtures; no model request is needed to accept the port.
+Nested plans carry actual local contexts and prove their claims; they do not
+replace admissions with unchecked external declarations.
+
+Observation-only modes are oracle, oracle-premises, witness, proof-profile,
+recall and embedding. Their output is a directory of per-goal snapshots with
+proof_authority="none". Oracle/chain modes deliberately inspect source proof
+information and are not unaided discovery. A chain becomes a checked proof
+only after independent acceptance of its assembled original-target script.
+Rule profiling describes solver inferences; it is not a Lean replay theorem.
+When producer formulas exceed the strict TPTP grammar, rule profiling retains
+the parse refusal and explicitly labels a lexical annotation count. That
+diagnostic fallback never presents a parsed DAG or a reconstruction licence.
+
+Embedding accepts dimension and vectors_file containing names and vectors
+arrays, or an explicitly configured budgeted provider plus cache_file. Its
+PythonDocumentQueryV1 profile uses the Python statement recipe, document
+vectors for queries, zero-norm behavior, name-descending score ties and
+reciprocal rank fusion. The existing Qwen document/query profile stays
+separate. Profiles bind model, endpoint, dimension, recipe and content; cache
+reload reconstructs normalized values. Cached tensors confer no certificate
+authority. Resume fingerprints actual normalized vectors, not just shapes.
+Embedding retrieval remains optional and does not claim improved proof recall.
+
+An omitted/empty goal list is rejected unless full_discovery=true is explicit.
+Bounded experimental qualification is available separately:
+
+  make test-cetta-research CETTA=cetta CORPUS=data/corpus.sexpr LEAN=lean ZIPPER=zipperposition
+
+It compares algorithm observations with pinned Python, replays local provider
+fixtures, checks bounded real prover/checker connections, rejects forged local
+receipts and tests journal resume. It is not added to ordinary engine tests.
+
+To explicitly request full discovery research, use the same tools and budgets
+with durable output:
+
+  python3 tests/run_ai_mathematician_discovery.py --full-discovery --profile python \
+    --cetta /path/to/cetta --corpus data/corpus.sexpr --lean /path/to/lean \
+    --vampire .cetta/tools/vampire-5.1.0-linux-x64/vampire \
+    --workers 2 --output .cetta/discovery-python
+
+Use PythonV4 and CettaFull as the other profiles, with separate output
+directories. Omit --goals for all 999 goals; it is a diagnostic subset option.
+--resume reuses completed work under the same experiment identity and rechecks
+saved proofs. Changed tools/strategies form a new cohort, not a mixed result.
+The comparison command takes --python, --metta-v4, --metta-full and --output
+directories; it requires complete journals and independent proof receipts.
+Its differing-goal list is an investigation queue, not an automatic parity claim.
+The comparison observes a bounded experiment, not exhaustion of mathematical
+proof search. A completed controller run whose only unfinished attempts hit
+their declared time, heartbeat or recursion budgets is reported as not proved
+within those budgets. The raw controller outcome and every budget reason remain
+visible; its native journal is never rewritten. Cancellation, memory failure,
+incomplete capture and unclassified conditions remain incomplete/faulted.
+Independent checking of a proposed proof must itself finish successfully.
+
+To explicitly request the optional three-cohort research comparison:
+
+  python3 tests/complete_ai_mathematician_discovery.py --full-discovery \
+    --cetta /path/to/cetta --corpus data/corpus.sexpr --lean /path/to/lean \
+    --vampire .cetta/tools/vampire-5.1.0-linux-x64/vampire \
+    --qualification .cetta/qualification --python .cetta/discovery-python \
+    --metta-v4 .cetta/discovery-metta-v4 --metta-full .cetta/discovery-cetta-full \
+    --output .cetta/discovery-comparison
+
+Each cohort defaults to two workers; --workers selects another count for newly
+started cohorts. Cohorts run sequentially. The command
+resumes an incomplete cohort under its original identity, checks the qualified
+runtime/toolchain, and rejects incomplete or inconsistent summaries. When the
+Python reference is already running, --wait-python-pid PID waits for that owned
+invocation without starting a duplicate. It does not terminate the borrowed
+producer if the sequencer is interrupted. Cohort journals retain live progress;
+the completion command has no overall deadline. It stops for operational faults
+or unfinished work not explained by the experiment's declared attempt budgets.
+These cases are investigated, not counted as failures to prove a theorem. No
+model requests are made.
+
 Performance measurements
 ------------------------
+
+Overlap preparation emits ordered contribution blocks. Ordinary callers may
+request the flat occurrence stream; ranking consumes the blocks directly.
+Definition bonuses precede overlap scores, repeated names remain occurrences,
+and grouped addition follows the same per-key schedule. No growing flat tuple
+is rebuilt once per row. Final ranking reads each name's source ordinal once
+for both eligibility and tie decoration; unknown names are rejected before
+ordinal comparison or score evaluation. These are authored MeTTa operations,
+not application-specific native scorers.
 
   python3 tests/benchmark_ai_mathematician.py --cetta cetta --corpus data/corpus.sexpr --component recall
 

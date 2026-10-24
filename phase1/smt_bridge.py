@@ -13,7 +13,7 @@ This module makes it fire, in two steps.
        e zero = Empty,   e (succ n) = ordsucc (e n),   nat_p (e n),
        nat_p x -> exists n. x = e n.
    All four are true in the library once nat_ind is (the last one IS
-   nat_ind, repackaged), and Vampire is an untrusted oracle anyway: Lean
+   nat_ind, repackaged), and Vampire only proposes anyway: Lean
    re-checks the final proof against the real statement. The goal is
    rewritten so the chosen variable ranges over Nat directly:
        forall x. ... nat_p x -> phi(x)   ~>   forall n:Nat. ... phi(e n).

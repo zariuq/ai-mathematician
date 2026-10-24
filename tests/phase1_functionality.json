@@ -1,0 +1,889 @@
+{
+  "schema": "ai-math.phase1-functionality.v1",
+  "scope": "The Phase 1 system and experimental algorithms at the pinned v9 reference, exposed through reusable native MeTTa operations and shared configurable runners; historical one-off CLI and report-publishing scripts are not duplicated.",
+  "python_revision": "f095266996dae3a658fb3ac63b2ffe414a9b9aa3",
+  "semantics": {
+    "strict": [
+      "declaration identities",
+      "evidence multiplicity",
+      "earlier-source cutoffs",
+      "selected premises",
+      "translation meaning",
+      "checked theorem statement",
+      "proof dependencies",
+      "failure/cancellation/resume distinctions"
+    ],
+    "not_required": [
+      "incidental floating-point bits across implementations",
+      "unspecified bag enumeration order",
+      "identical wording of advisory prompts",
+      "identical spelling-suggestion heuristics",
+      "identical stochastic discovery outcomes"
+    ],
+    "proof_authority": "Independent Lean kernel replay, original statement identity and source-order/axiom checks; solver and provider replies are advice."
+  },
+  "capabilities": [
+    {
+      "id": "corpus",
+      "python": {
+        "library.py": [
+          "Decl",
+          "load"
+        ]
+      },
+      "native": {
+        "phase1/library.metta": [
+          "ai-math:load-library",
+          "ai-math:declaration-name"
+        ]
+      },
+      "gates": [
+        "library"
+      ]
+    },
+    {
+      "id": "premise-selection",
+      "python": {
+        "search.py": [
+          "Search",
+          "Search.rank",
+          "Search.diverse_slices",
+          "evaluate_recall"
+        ]
+      },
+      "native": {
+        "phase1/search.metta": [
+          "ai-math:search",
+          "ai-math:rank-for",
+          "ai-math:diverse-slices",
+          "ai-math:recall-samples"
+        ]
+      },
+      "gates": [
+        "search",
+        "score_schedule",
+        "upstream"
+      ]
+    },
+    {
+      "id": "higher-order-atp",
+      "python": {
+        "atp.py": [
+          "Unsupported",
+          "ident",
+          "THF",
+          "THF.tp",
+          "THF.tm",
+          "THF.problem",
+          "attach_prim_indices",
+          "run_vampire"
+        ]
+      },
+      "native": {
+        "phase1/atp.metta": [
+          "ai-math:thf",
+          "ai-math:thf-problem",
+          "ai-math:thf-text",
+          "ai-math:vampire",
+          "ai-math:atp-summary"
+        ]
+      },
+      "gates": [
+        "atp",
+        "ranked_bridge"
+      ]
+    },
+    {
+      "id": "solver-proof-advice",
+      "python": {
+        "vampire_proof.py": [
+          "Step",
+          "Step.is_input",
+          "parse_proof",
+          "run_with_proof",
+          "format_for_llm",
+          "proof_for_llm"
+        ]
+      },
+      "native": {
+        "phase1/vampire_output.metta": [
+          "ai-math:vampire-read-payload"
+        ],
+        "phase1/proof_advice.metta": [
+          "ai-math:proof-dag",
+          "ai-math:proof-advice"
+        ]
+      },
+      "gates": [
+        "vampire_output",
+        "proof_advice"
+      ]
+    },
+    {
+      "id": "lean-acceptance",
+      "python": {
+        "itp.py": [
+          "load_statements",
+          "check",
+          "leak_free"
+        ]
+      },
+      "native": {
+        "phase1/itp.metta": [
+          "ai-math:itp-load-statements",
+          "ai-math:itp-check-with",
+          "ai-math:itp-checked"
+        ]
+      },
+      "gates": [
+        "itp",
+        "isolation"
+      ]
+    },
+    {
+      "id": "tactics-and-controller",
+      "python": {
+        "prover.py": [
+          "candidate_tactics",
+          "followup_tactics",
+          "apply_tactics",
+          "apply2_tactics",
+          "duper_tactics",
+          "Prover",
+          "Prover.premise_sets",
+          "Prover.hints",
+          "Prover.goal_defs",
+          "Prover.attempt_batch",
+          "Prover.prove"
+        ]
+      },
+      "native": {
+        "phase1/proof_strategy.metta": [
+          "ai-math:candidate-tactics",
+          "ai-math:followup-tactics",
+          "ai-math:apply-tactics",
+          "ai-math:apply2-tactics",
+          "ai-math:duper-tactics"
+        ],
+        "phase1/prover.metta": [
+          "ai-math:prove",
+          "ai-math:prover-hints"
+        ],
+        "phase1/itp.metta": [
+          "ai-math:itp-batch-resilient"
+        ]
+      },
+      "gates": [
+        "prover",
+        "reconstruction",
+        "upstream"
+      ]
+    },
+    {
+      "id": "induction",
+      "python": {
+        "induction.py": [
+          "to_named",
+          "to_db",
+          "subst",
+          "mentions",
+          "Inductor",
+          "Inductor.splits",
+          "lean_script"
+        ],
+        "prover.py": [
+          "Prover.induction_split",
+          "Prover.induction_lean"
+        ]
+      },
+      "native": {
+        "phase1/induction.metta": [
+          "ai-math:induction-prefix"
+        ],
+        "phase1/induction_prover.metta": [
+          "ai-math:induction-prove"
+        ]
+      },
+      "gates": [
+        "induction",
+        "reconstruction"
+      ]
+    },
+    {
+      "id": "smt-bridge",
+      "python": {
+        "smt_bridge.py": [
+          "SMT",
+          "SMT.tm",
+          "SMT.problem",
+          "run"
+        ],
+        "prover.py": [
+          "Prover.enable_smt"
+        ]
+      },
+      "native": {
+        "phase1/smt_bridge.metta": [
+          "ai-math:smt-problem",
+          "ai-math:smt-vampire"
+        ]
+      },
+      "gates": [
+        "smt"
+      ]
+    },
+    {
+      "id": "lean-export-and-views",
+      "python": {
+        "sexpr_translate.py": [
+          "parse_sexpr",
+          "parse_toplevel_forms",
+          "categorise",
+          "Ctx",
+          "Ctx.fresh",
+          "Ctx.resolve_hash",
+          "Ctx.resolve_prim",
+          "tp_to_lean",
+          "tm_to_lean",
+          "pf_to_lean",
+          "audit_hash_consistency",
+          "Entry",
+          "translate",
+          "render",
+          "render_category",
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/lean_export.metta": [
+          "ai-math:lean-export",
+          "ai-math:lean-term",
+          "ai-math:lean-render"
+        ],
+        "phase1/lean_views.metta": [
+          "ai-math:lean-views"
+        ]
+      },
+      "gates": [
+        "lean_export",
+        "library"
+      ]
+    },
+    {
+      "id": "chat-budget-transport",
+      "python": {
+        "llm.py": [
+          "BudgetExhausted",
+          "chat",
+          "usage_summary"
+        ]
+      },
+      "native": {
+        "phase1/llm_transport.metta": [
+          "ai-math:llm-client",
+          "ai-math:llm-chat",
+          "ai-math:llm-usage-summary"
+        ],
+        "phase1/llm_ledger.metta": [
+          "ai-math:llm-ledger-reserve",
+          "ai-math:llm-ledger-summary"
+        ]
+      },
+      "gates": [
+        "llm"
+      ]
+    },
+    {
+      "id": "proposal-normalization-repairs",
+      "python": {
+        "llm.py": [
+          "repair_variants",
+          "normalize"
+        ]
+      },
+      "native": {
+        "phase1/llm.metta": [
+          "ai-math:llm-extract",
+          "ai-math:llm-normalize",
+          "ai-math:llm-repair-variants",
+          "ai-math:llm-check-script"
+        ]
+      },
+      "gates": [
+        "llm",
+        "upstream"
+      ]
+    },
+    {
+      "id": "prompt-context-and-examples",
+      "python": {
+        "llm.py": [
+          "LeanContext",
+          "LeanContext.show",
+          "build_prompt",
+          "goal_state"
+        ]
+      },
+      "native": {
+        "phase1/llm.metta": [
+          "ai-math:llm-prompt-with",
+          "ai-math:llm-goal-state",
+          "ai-math:llm-select-examples",
+          "ai-math:llm-proof-prompt"
+        ]
+      },
+      "gates": [
+        "llm",
+        "signature_feedback",
+        "upstream"
+      ]
+    },
+    {
+      "id": "lean-feedback",
+      "python": {
+        "llm.py": [
+          "feedback"
+        ],
+        "lean_sigs.py": [
+          "tidy",
+          "build",
+          "get"
+        ]
+      },
+      "native": {
+        "phase1/llm.metta": [
+          "ai-math:llm-feedback",
+          "ai-math:llm-signature-feedback",
+          "ai-math:llm-near-names"
+        ]
+      },
+      "gates": [
+        "signature_feedback",
+        "llm"
+      ]
+    },
+    {
+      "id": "proposal-loop",
+      "python": {
+        "llm.py": [
+          "llm_rounds"
+        ]
+      },
+      "native": {
+        "phase1/llm.metta": [
+          "ai-math:llm-prove",
+          "ai-math:proposal-loop"
+        ],
+        "phase1/llm_experiment.metta": [
+          "ai-math:proposal-one",
+          "ai-math:proposal-run"
+        ]
+      },
+      "gates": [
+        "llm"
+      ]
+    },
+    {
+      "id": "draft-sketch-prove",
+      "python": {
+        "experiments/dsp.py": [
+          "hammer",
+          "fill_gaps",
+          "dsp_rounds"
+        ]
+      },
+      "native": {
+        "phase1/llm.metta": [
+          "ai-math:dsp-prove",
+          "ai-math:dsp-instruction"
+        ]
+      },
+      "gates": [
+        "llm"
+      ],
+      "notes": "The published DSP workflow uses checked closing tactics rather than textual admissions; every assembled candidate follows the ordinary proof boundary."
+    },
+    {
+      "id": "workers-journals-resume",
+      "python": {},
+      "native": {
+        "phase1/experiment.metta": [
+          "ai-math:run-open",
+          "ai-math:run-resume",
+          "ai-math:run-publish"
+        ],
+        "phase1/experiment_workers.metta": []
+      },
+      "gates": [
+        "workers",
+        "experiment",
+        "discovery"
+      ]
+    },
+    {
+      "id": "published-witness-rechecking",
+      "python": {},
+      "native": {
+        "phase1/itp.metta": [
+          "ai-math:itp-check-with"
+        ]
+      },
+      "gates": [
+        "published",
+        "isolation"
+      ]
+    },
+    {
+      "id": "optional-supplied-vector-retrieval",
+      "python": {},
+      "native": {
+        "phase1/embedding_search.metta": [
+          "ai-math:embedding-build",
+          "ai-math:embedding-rank",
+          "ai-math:embedding-hybrid-rank"
+        ]
+      },
+      "gates": [
+        "embeddings"
+      ],
+      "notes": "Optional native retrieval profile; this is not a claim of matching the separate Python embedding experiment's text recipe or tie policy."
+    },
+    {
+      "id": "propositional-synthesis",
+      "python": {
+        "experiments/prop_synth.py": [
+          "shift",
+          "subst",
+          "Unfolder",
+          "Unfolder.whnf",
+          "eq",
+          "Synth",
+          "Synth.prove"
+        ]
+      },
+      "native": {
+        "phase1/prop_synth.metta": [
+          "ai-math:prop-shift",
+          "ai-math:prop-substitute",
+          "ai-math:prop-whnf",
+          "ai-math:prop-synth",
+          "ai-math:prop-prove",
+          "ai-math:prop-check"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "incremental-beam-search",
+      "python": {
+        "experiments/incremental.py": [
+          "state_syms",
+          "probe_batch",
+          "steps",
+          "prove"
+        ]
+      },
+      "native": {
+        "phase1/proof_state.metta": [
+          "ai-math:probe-batch",
+          "ai-math:state-symbols"
+        ],
+        "phase1/incremental.metta": [
+          "ai-math:incremental-steps",
+          "ai-math:incremental-prove"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "recursive-lemma-decomposition",
+      "python": {
+        "experiments/decompose.py": [
+          "Lemma",
+          "fill",
+          "unsolved",
+          "lemma_sig",
+          "decompose_rounds"
+        ]
+      },
+      "native": {
+        "phase1/proof_plans.metta": [
+          "ai-math:derived-state",
+          "ai-math:plan-prove",
+          "ai-math:decompose-plan"
+        ],
+        "phase1/decomposition.metta": [
+          "ai-math:decompose-rounds",
+          "ai-math:plan-extended-claim"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "extended-duper-strategies",
+      "python": {
+        "experiments/duper2.py": [
+          "duper2_tactics"
+        ]
+      },
+      "native": {
+        "phase1/research_strategies.metta": [
+          "ai-math:duper2-tactics"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "source-proof-chain",
+      "python": {
+        "experiments/chain_prove.py": [
+          "main"
+        ],
+        "experiments/oracle_haves.py": [
+          "build_ctx",
+          "collect_haves",
+          "Hop",
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/oracle_chains.metta": [
+          "ai-math:oracle-close-proposition",
+          "ai-math:oracle-haves",
+          "ai-math:oracle-probe",
+          "ai-math:chain-prove"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "recursive-hybrid-induction",
+      "python": {
+        "experiments/hybrid_induction.py": [
+          "bridge_facts",
+          "prove_lemma",
+          "split_and_prove",
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/hybrid_induction.metta": [
+          "ai-math:hybrid-bridge",
+          "ai-math:hybrid-claim",
+          "ai-math:hybrid-goal",
+          "ai-math:hybrid-prove"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "alternative-atp",
+      "python": {
+        "experiments/zipper.py": [
+          "run_zipperposition"
+        ]
+      },
+      "native": {
+        "phase1/alternative_atp.metta": [
+          "ai-math:zipperposition",
+          "ai-math:zipper-observation"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "python-embedding-experiment",
+      "python": {
+        "experiments/embed_search.py": [
+          "EmbedSearch",
+          "EmbedSearch.rank",
+          "fuse"
+        ]
+      },
+      "native": {
+        "phase1/embedding_python.metta": [
+          "ai-math:embedding-python-text",
+          "ai-math:embedding-python-prepare",
+          "ai-math:embedding-python-rank",
+          "ai-math:reciprocal-rank-fuse",
+          "ai-math:embedding-cache-load",
+          "ai-math:embedding-cache-save"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "witness-synthesis-diagnostic",
+      "python": {
+        "experiments/witness_audit.py": [
+          "classify",
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/research_analysis.metta": [
+          "ai-math:witness-classify"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "solver-proof-rule-profiling",
+      "python": {
+        "experiments/proof_profile.py": [
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/research_analysis.metta": [
+          "ai-math:proof-profile",
+          "ai-math:proof-profile-report"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "oracle-premise-diagnostic",
+      "python": {
+        "experiments/oracle_v3.py": [
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/research_analysis.metta": [
+          "ai-math:oracle-premise-advice"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "retrieval-research-evaluation",
+      "python": {
+        "experiments/eval_search.py": [
+          "one",
+          "report",
+          "main"
+        ]
+      },
+      "native": {
+        "phase1/research_analysis.metta": [
+          "ai-math:recall-report"
+        ],
+        "phase1/search.metta": [
+          "ai-math:rank-with",
+          "ai-math:recall-samples"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    },
+    {
+      "id": "research-runner-and-resume",
+      "python": {},
+      "native": {
+        "phase1/research.metta": [
+          "ai-math:research-one",
+          "ai-math:research-run",
+          "ai-math:research-observations"
+        ],
+        "phase1/research_main.metta": [
+          "ai-research:run"
+        ]
+      },
+      "gates": [
+        "research"
+      ]
+    }
+  ],
+  "separate_research": [
+    "full proof-discovery recall comparison",
+    "new model/provider quality evaluation",
+    "Phase 2 and Phase 3, not implemented upstream",
+    "broader tensor/collection interoperability"
+  ],
+  "impact": {
+    "phase1/itp.metta": [
+      "itp",
+      "research"
+    ],
+    "phase1/experiment.metta": [
+      "experiment",
+      "workers",
+      "llm",
+      "research"
+    ],
+    "phase1/llm.metta": [
+      "llm",
+      "signature_feedback",
+      "upstream"
+    ],
+    "phase1/llm_transport.metta": [
+      "llm",
+      "signature_feedback",
+      "upstream"
+    ],
+    "phase1/llm_ledger.metta": [
+      "llm"
+    ],
+    "phase1/llm_experiment_main.metta": [
+      "llm"
+    ],
+    "phase1/prop_synth.metta": [
+      "research"
+    ],
+    "phase1/research_strategies.metta": [
+      "research"
+    ],
+    "phase1/proof_state.metta": [
+      "research"
+    ],
+    "phase1/incremental.metta": [
+      "research"
+    ],
+    "phase1/alternative_atp.metta": [
+      "research"
+    ],
+    "phase1/proof_plans.metta": [
+      "research"
+    ],
+    "phase1/decomposition.metta": [
+      "research"
+    ],
+    "phase1/oracle_chains.metta": [
+      "research"
+    ],
+    "phase1/hybrid_induction.metta": [
+      "research"
+    ],
+    "phase1/embedding_python.metta": [
+      "research"
+    ],
+    "phase1/research_analysis.metta": [
+      "research"
+    ],
+    "phase1/research.metta": [
+      "research"
+    ],
+    "phase1/research_main.metta": [
+      "research"
+    ]
+  },
+  "experiment_recipes": [
+    {
+      "files": [
+        "llm_experiment.py",
+        "try_llm.py",
+        "try_llm_sweep.py",
+        "try_llm_vampire.py",
+        "try_llm_vampire_sweep.py"
+      ],
+      "capabilities": [
+        "proposal-loop",
+        "prompt-context-and-examples",
+        "solver-proof-advice",
+        "recursive-lemma-decomposition"
+      ]
+    },
+    {
+      "files": [
+        "try_apply.py",
+        "try_apply2.py",
+        "try_atp.py",
+        "try_diverse.py",
+        "try_duper.py",
+        "try_duper_hard.py",
+        "try_duper_search.py",
+        "try_vampire_budget.py",
+        "rerun_vampire.py",
+        "rebuild_hits.py",
+        "rebuild_failures.py",
+        "try_rebuild.py",
+        "try_t300_rebuild.py"
+      ],
+      "capabilities": [
+        "premise-selection",
+        "tactics-and-controller",
+        "higher-order-atp"
+      ]
+    },
+    {
+      "files": [
+        "try_induction.py",
+        "try_induction_budget.py",
+        "try_induction_hard.py",
+        "rebuild_induction.py"
+      ],
+      "capabilities": [
+        "induction",
+        "recursive-hybrid-induction"
+      ]
+    },
+    {
+      "files": [
+        "try_incremental.py"
+      ],
+      "capabilities": [
+        "incremental-beam-search"
+      ]
+    },
+    {
+      "files": [
+        "try_prop_synth.py"
+      ],
+      "capabilities": [
+        "propositional-synthesis"
+      ]
+    },
+    {
+      "files": [
+        "try_duper2.py"
+      ],
+      "capabilities": [
+        "extended-duper-strategies"
+      ]
+    },
+    {
+      "files": [
+        "try_zipper.py"
+      ],
+      "capabilities": [
+        "alternative-atp"
+      ]
+    },
+    {
+      "files": [
+        "recheck_hybrid.py",
+        "recheck_vp_repairs.py",
+        "verify_vp_final.py"
+      ],
+      "capabilities": [
+        "published-witness-rechecking",
+        "proposal-normalization-repairs",
+        "workers-journals-resume"
+      ]
+    }
+  ]
+}

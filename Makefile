@@ -1,18 +1,19 @@
 CETTA ?= cetta
 .DEFAULT_GOAL := test-cetta
-VAMPIRE ?= tools/vampire
+VAMPIRE ?= .cetta/tools/vampire-5.1.0-linux-x64/vampire
 PYTHON ?= python3
 CORPUS ?=
 LEAN ?= lean
 DUPER ?= 0
 HTTP_CETTA ?=
 RUN_CONFIG ?= cetta-run.json
+RESEARCH_CONFIG ?= cetta-research.example.json
+ZIPPER ?= tools/duper-env/.lake/packages/auto/.lake/build/zipperposition.exe
 ITP_RUNTIME ?= native
 LEANC ?= $(shell "$(LEAN)" --print-prefix)/bin/leanc
 ITP_NATIVE := .cetta/lean-native
 ITP_COMPILER := .cetta/lean-compiler.txt
 ITP_MODULES := MegLib Bridge CettaProofTactics CettaITP CettaProposalView CettaITPGuard
-ITP_NATIVE_SOURCES := $(addprefix lib/,$(addsuffix .lean,$(ITP_MODULES))) phase1/itp_driver.lean phase1/itp_guard.lean lean-toolchain
 .SECONDARY: $(addprefix $(ITP_NATIVE)/ir/,$(addsuffix .c,$(ITP_MODULES) itp_driver itp_guard)) $(addprefix $(ITP_NATIVE)/ir/,$(addsuffix .o,$(ITP_MODULES) itp_driver itp_guard))
 
 .PHONY: test-cetta test-cetta-library test-cetta-search test-cetta-atp test-cetta-itp test-cetta-prover
@@ -50,16 +51,12 @@ prepare-cetta-itp: lib/CettaITPGuard.olean
 # These programs execute tactics dynamically, but need no source frontend at
 # startup. Generated proof libraries do not need editor/IDE metadata.
 .PHONY: prepare-cetta-itp-native
-prepare-cetta-itp-native: prepare-cetta-itp $(ITP_NATIVE)/sources.sha256 $(ITP_NATIVE)/sysroot.txt
+prepare-cetta-itp-native: prepare-cetta-itp $(ITP_NATIVE)/itp-guard $(ITP_NATIVE)/itp-worker $(ITP_NATIVE)/sysroot.txt
 
 .PHONY: test-cetta-itp-native
 test-cetta-itp-native: prepare-cetta-itp-native
 	CETTA_ITP_RUNTIME=native $(PYTHON) tests/check_ai_mathematician_itp.py --cetta "$(CETTA)" --lean "$(LEAN)" \
 		$(if $(strip $(CORPUS)),--corpus "$(CORPUS)")
-
-$(ITP_NATIVE)/sources.sha256: $(ITP_NATIVE_SOURCES) $(ITP_NATIVE)/itp-guard $(ITP_NATIVE)/itp-worker $(ITP_COMPILER) Makefile
-	sha256sum $(ITP_NATIVE_SOURCES) $(ITP_COMPILER) > $@.new
-	mv -f $@.new $@
 
 $(ITP_NATIVE)/sysroot.txt: $(ITP_COMPILER) Makefile
 	mkdir -p "$(ITP_NATIVE)"
@@ -174,6 +171,31 @@ test-cetta-atp:
 
 # Optional runtime integration; normal application tests need neither Cesta nor C sources.
 CETTA_SOURCE ?=
+QUALIFICATION_OUTPUT ?= .cetta/qualification
+QUALIFICATION_RESUME ?= 0
+.PHONY: qualify-cetta
+qualify-cetta: prepare-cetta-itp-native prepare-cetta-duper
+	$(PYTHON) tests/qualify_ai_mathematician.py --cetta "$(CETTA)" \
+		--engine-source "$(CETTA_SOURCE)" \
+		--corpus "$(CORPUS)" --vampire "$(VAMPIRE)" --lean "$(LEAN)" \
+		--zipper "$(ZIPPER)" --output "$(QUALIFICATION_OUTPUT)" $(if $(filter 1,$(QUALIFICATION_RESUME)),--resume)
 .PHONY: test-cetta-layout-runtime
+QUALIFICATION_BASELINE ?= .cetta/qualification
+FUNCTIONAL_QUALIFICATION_OUTPUT ?= .cetta/functional-qualification
+.PHONY: qualify-cetta-functionality
+qualify-cetta-functionality:
+	$(PYTHON) tests/check_ai_mathematician_functionality.py
+	$(PYTHON) tests/qualify_ai_mathematician_functionality.py \
+		--baseline "$(QUALIFICATION_BASELINE)" --output "$(FUNCTIONAL_QUALIFICATION_OUTPUT)" --zipper "$(ZIPPER)"
+
+.PHONY: run-cetta-research test-cetta-research
+run-cetta-research: prepare-cetta-itp-native
+	CETTA_ITP_RUNTIME="$(ITP_RUNTIME)" "$(CETTA)" --no-results --lang petta@1.0.6 \
+		phase1/research_main.metta "$(RESEARCH_CONFIG)"
+
+test-cetta-research:
+	CETTA_ITP_RUNTIME=native $(PYTHON) tests/check_ai_mathematician_research.py --cetta "$(CETTA)" \
+		--corpus "$(CORPUS)" --lean "$(LEAN)" --zipper "$(ZIPPER)" --vampire "$(VAMPIRE)" --require-integrations
+
 test-cetta-layout-runtime:
 	$(PYTHON) tests/check_cetta_layout_runtime.py --cetta "$(CETTA)" --cetta-source "$(CETTA_SOURCE)"

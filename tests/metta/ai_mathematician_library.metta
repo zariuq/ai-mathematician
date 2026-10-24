@@ -1,5 +1,15 @@
 !(import! &self "../../phase1/library.metta")
 
+; A variable-headed singleton may be an application, not inert list data.
+(: test:callable-member String)
+(= (test:callable-member)
+   (let $_ (add-atom &self (MembershipInvocation)) ("hit")))
+!(test
+   (let* (($found (ai-math:contains ("hit") test:callable-member))
+          ($calls (size-atom (collapse (match &self (MembershipInvocation) seen)))))
+     ($found $calls))
+   (true 1))
+
 ; Two positive ingestion examples: a definition uses its body for symbols;
 ; a theorem enters the library at PROOF, with actual cited facts only.
 !(test

@@ -1,4 +1,4 @@
-"""Phase 1 LLM plug-in: an UNTRUSTED proposer of Lean tactic scripts.
+"""Phase 1 LLM plug-in: proposes Lean tactic scripts; Lean checks every one.
 
 Implements the sketch's feedback arrow: propose -> Lean checks -> on
 failure, Lean's actual error goes back to the model for another round.
@@ -104,8 +104,12 @@ def usage_summary(path=LEDGER):
     return {"calls": calls, "prompt_tokens": pt, "completion_tokens": ct}
 
 
-def chat(messages, model=DEFAULT_MODEL, max_tokens=16000, temperature=0.2,
+def chat(messages, model=DEFAULT_MODEL, max_tokens=16000, temperature=None,
          retries=4, salvage=True, extra=None):
+    # LLM_TEMPERATURE lets a re-attempt pass sample genuinely different
+    # proofs instead of near-repeats of the previous pass (default 0.2)
+    if temperature is None:
+        temperature = float(os.environ.get("LLM_TEMPERATURE", "0.2"))
     env = _env()
     body = json.dumps({"model": model, "messages": messages,
                        "max_tokens": max_tokens,
@@ -176,11 +180,16 @@ class LeanContext:
         # the premises: on the 257 hardest goals the human proofs cite a
         # median of 13 lemmas, and Search's top 24 held all of them for only
         # 7 goals (top 96: 66).
+        import lean_sigs
+        sigs = lean_sigs.get()
         out, total = [], 0
         for n in names:
             t = self.text.get(n)
             if not t:
                 continue
+            if n in sigs and t.startswith(("theorem", "axiom")):
+                # Lean's own rendering: argument order plain (see lean_sigs.py)
+                t = f"{t.split()[0]} {n} : {sigs[n]}"
             if total + len(t) > limit_chars:
                 break
             out.append(t)
@@ -369,6 +378,16 @@ def feedback(why, prover, goal, limit=2500):
     import difflib
     body = "\n".join(l for l in why.splitlines() if not l.startswith("GUARD"))
     body = body.strip()[:limit]
+    # The commonest failure once the right lemmas are present: a lemma
+    # applied with its arguments in the wrong order. Show its signature.
+    import lean_sigs
+    sigs = lean_sigs.get()
+    misused = [h.split(".")[-1] for h in
+               re.findall(r"in the application\s*\n\s*@?([A-Za-z_][\w'.]*)", why)]
+    shown = [m for m in dict.fromkeys(misused) if m in sigs][:3]
+    if shown:
+        body += "\n\nThe arguments must follow each lemma's signature, in this order:\n" + \
+            "\n".join(f"  {m} : {sigs[m]}" for m in shown)
     unknown = re.findall(r"[Uu]nknown (?:identifier|constant) `([^`]+)`", why)
     if unknown:
         ctx = getattr(prover, "_lean_ctx", None)

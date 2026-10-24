@@ -41,10 +41,12 @@
              ("corpus" "baseline" "output" "model" "ledger" "call_cap" "rounds" "mode"
               "stride" "limit" "skip" "vampire_only" "resume" "lean" "vampire"
               "token_field" "premise_limit" "context_chars" "definition_chars" "feedback_chars"
-              "goal_state" "salvage" "timeout_ms" "proof_advice" "proof_chars") $key)))))))
+              "goal_state" "salvage" "timeout_ms" "proof_advice" "proof_chars"
+              "example_pool" "examples" "temperature" "max_tokens" "retries") $key)))))))
 (= (ai-proposal-main:policy $row)
    (and (foldl-atom ("call_cap" "rounds" "stride" "limit" "skip" "premise_limit" "context_chars"
-                    "definition_chars" "feedback_chars" "timeout_ms" "proof_chars") true $ok $key
+                    "definition_chars" "feedback_chars" "timeout_ms" "proof_chars"
+                    "examples" "max_tokens" "retries") true $ok $key
           (and $ok (ai-math:itp-natural (ai-proposal-main:option $row $key 0))))
      (and (> (ai-proposal-main:option $row "stride" 1) 0)
        (and (foldl-atom ("resume" "vampire_only" "goal_state" "salvage" "proof_advice") true $ok $key
@@ -53,8 +55,12 @@
          (and (ai-math:contains ("direct" "dsp") (ai-proposal-main:option $row "mode" "direct"))
            (and (ai-math:contains ("max_tokens" "max_completion_tokens")
                   (ai-proposal-main:option $row "token_field" "max_tokens"))
-             (foldl-atom ("lean" "vampire") true $ok $key
-               (and $ok (== (get-type (ai-proposal-main:option $row $key "")) String)))))))))
+             (and (let $temperature (ai-proposal-main:option $row "temperature" 0.2)
+                    (if (== (get-type $temperature) Number)
+                      (and (>= $temperature 0.0) (<= $temperature 2.0)) false))
+               (and (> (ai-proposal-main:option $row "retries" 4) 0)
+                 (foldl-atom ("lean" "vampire" "example_pool") true $ok $key
+                   (and $ok (== (get-type (ai-proposal-main:option $row $key "")) String)))))))))))
 (= (ai-proposal-main:run $row)
    (if (ai-proposal-main:valid $row)
      (let* (($secret (system:getenv-or-default "LLM_API_KEY" ""))
@@ -68,10 +74,19 @@
                   ($context (ai-math:prover-with (ai-math:load-library $corpus) $corpus $root $lean $vampire
                     ((use-duper false) (induction false))))
                   ($cap (ai-proposal-main:option $row "call_cap" 0))
+                  ($pool-file (ai-proposal-main:option $row "example_pool" ""))
+                  ($pool (if (== $pool-file "") ()
+                    (ai-math:llm-example-pool (json:parse (fs:read-text $pool-file)))))
                   ($client (ai-math:llm-client $root (ai-math:http-session) $endpoint
                     (ai-proposal-main:option $row "model" AiMissing) $secret
                     (ai-proposal-main:option $row "ledger" AiMissing) $cap
                     ((token-field (ai-proposal-main:option $row "token_field" "max_tokens"))
+                     (max-tokens (ai-proposal-main:option $row "max_tokens" 16000))
+                     (temperature (ai-proposal-main:option $row "temperature"
+                       (str:string->number (system:getenv-or-default "LLM_TEMPERATURE" "0.2"))))
+                     (retries (ai-proposal-main:option $row "retries" 4))
+                     (examples $pool)
+                     (example-count (ai-proposal-main:option $row "examples" 0))
                      (premise-limit (ai-proposal-main:option $row "premise_limit" 96))
                      (context-chars (ai-proposal-main:option $row "context_chars" 80000))
                      (definition-chars (ai-proposal-main:option $row "definition_chars" 12000))

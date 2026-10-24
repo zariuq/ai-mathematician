@@ -16,7 +16,7 @@ path, in the style of Draft, Sketch, and Prove (Jiang et al., ICLR 2023):
 The division of labour is the point: the LLM supplies the proof's
 STRUCTURE, which automation cannot find, and automation supplies the
 routine steps, which is where LLM-written Lean usually breaks.
-Everything the model writes is untrusted; only Lean decides.
+The model only proposes; only Lean decides.
 
 All calls go through llm.chat, so they count against the hard call cap.
 """

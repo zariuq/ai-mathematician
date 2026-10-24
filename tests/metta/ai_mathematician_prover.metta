@@ -119,5 +119,17 @@
    (AiProver:Faulted ((AiProver:StageFault base (AiITP:Fault "g" protocol ())))))
 !(test (ai-math:prover-outcome ((AiProver:Attempt base 0 "x" "" (AiITP:Rejected "g" lean-errors ()))) (base))
    (AiProver:NotProved (AiProver:Coverage (base))))
+!(test
+   (let* (($old (AiProver:StageFault atp (AiITP:Unfinished "g" vampire-resource (16 "Timeout"))))
+          ($fault (AiProver:StageFault induction (AiITP:Fault "g" process ())))
+          ($later (AiProver:Attempt induction-case 0 "x" "" (AiITP:Unfinished "g" retry-deadline ()))))
+     ((ai-math:induction-outcome (AiProver:Unfinished ($old)) ($old $fault))
+      (ai-math:induction-outcome (AiProver:Unfinished ($old)) ($old $later))))
+   ((AiProver:Faulted ((AiProver:StageFault induction (AiITP:Fault "g" process ()))))
+    (AiProver:Unfinished
+      ((AiProver:StageFault atp (AiITP:Unfinished "g" vampire-resource (16 "Timeout")))
+       (AiProver:Attempt induction-case 0 "x" "" (AiITP:Unfinished "g" retry-deadline ()))))))
+!(test (ai-math:induction-outcome (AiProver:NotProved (AiProver:Coverage (base))) ())
+   (AiProver:NotProved (AiProver:Coverage (base induction))))
 !(test (ai-math:itp-retry-budget (AiITP:Budget 30000 100 80) 5000 1234) (AiITP:Budget 3766 100 80))
 !(test (ai-math:itp-retry-budget (AiITP:Budget 30000 100 80) 0 100000) (AiITP:Budget 30000 100 80))

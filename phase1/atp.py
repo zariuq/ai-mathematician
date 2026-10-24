@@ -1,6 +1,6 @@
 """Phase 1 ATP bridge: goal + selected facts -> TPTP THF -> Vampire.
 
-Vampire is an UNTRUSTED oracle here, exactly like the LLM will be. Its job
+Vampire only proposes here, exactly like the LLM does. Its job
 is to say "this goal follows from these particular facts". Only Lean's
 kernel (itp.py) decides whether anything is actually proved. That lets the
 translation below favour what helps Vampire search, rather than mirroring

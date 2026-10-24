@@ -14,7 +14,7 @@ import time
 
 from check_ai_mathematician_atp import generated_corpus, prelude as atp_prelude, read_values
 from check_ai_mathematician_library import ROOT, quote
-from python_oracle import UPSTREAM_V7, oracle_directory
+from python_oracle import UPSTREAM_V9, oracle_directory
 from typed_export_oracle import accept_source_positions
 
 
@@ -42,7 +42,7 @@ def execute(binary, source, output, *, extended=False):
 
 
 def load_oracle():
-    directory = oracle_directory(UPSTREAM_V7)
+    directory = oracle_directory(UPSTREAM_V9)
     sys.path.insert(0, str(directory))
     import library
     accept_source_positions(library)
@@ -340,7 +340,7 @@ def benchmark(binary, corpus, library, module, output):
                       'metta_lower_ns': lower, 'metta_render_ns': emit,
                       'cetta_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
                       'smt_source_sha256': hashlib.sha256((ROOT / 'phase1/smt_bridge.metta').read_bytes()).hexdigest(),
-                      'upstream_revision': UPSTREAM_V7}), flush=True)
+                      'upstream_revision': UPSTREAM_V9}), flush=True)
 
 
 def check_controller(binary, vampire, corpus, output):

@@ -2,6 +2,15 @@
 ; http_transport.metta and the normal application JSON/process APIs first.
 ; The client holds credentials in a local space, not in printable results.
 
+(= (ai-math:llm-examples-valid $examples)
+   (if (== (get-metatype $examples) Expression)
+     (and (foldl-atom $examples true $ok $example
+            (and $ok (case $example
+              (((AiLLM:Example $name $script)
+                (and (== (get-type $name) String) (== (get-type $script) String)))
+               ($other false)))))
+          (let $names (map-atom $examples $example (index-atom $example 1))
+            (== (size-atom $names) (size-atom (unique-atom $names))))) false))
 (= (ai-math:llm-options-valid $options)
    (if (== (get-metatype $options) Expression)
      (foldl-atom $options true $ok $entry
@@ -10,10 +19,12 @@
            (case $key
              ((token-field (ai-math:contains ("max_tokens" "max_completion_tokens") $value))
               (temperature (if (== (get-type $value) Number) (and (>= $value 0) (<= $value 2)) false))
+              (examples (ai-math:llm-examples-valid $value))
+              (retries (and (ai-math:itp-natural $value) (> $value 0)))
               ($flag (if (ai-math:contains (salvage goal-state proof-advice) $flag)
                        (or (== $value true) (== $value false))
                        (if (ai-math:contains (max-tokens timeout-ms max-bytes ledger-timeout-ms retry-delay-seconds
-                                              premise-limit context-chars definition-chars feedback-chars proof-chars) $flag)
+                                              premise-limit context-chars definition-chars feedback-chars proof-chars example-count) $flag)
                          (ai-math:itp-natural $value) false))))))
           ($other false))))) false))
 (= (ai-math:llm-client $root $session $endpoint $model $secret $ledger $cap $options)
@@ -69,6 +80,17 @@
             (JsonPair "usage" $usage) (JsonPair "nanoseconds" $elapsed))))
      (((JsonObject ((JsonPair "kind" "usage-recorded"))) AiLLM:UsageRecorded)
       ($other (AiLLM:Fault usage-record)))))
+(= (ai-math:llm-usage-summary $client)
+   (let $reply (ai-math:llm-ledger-call $client
+          (JsonObject ((JsonPair "operation" "summary"))))
+     (case (json:get $reply "kind")
+       (("usage-summary"
+         (let* (($calls (json:get $reply "calls")) ($prompt (json:get $reply "prompt_tokens"))
+                ($completion (json:get $reply "completion_tokens")))
+           (if (and (ai-math:itp-natural $calls)
+                    (and (ai-math:itp-natural $prompt) (ai-math:itp-natural $completion)))
+             (AiLLM:Usage $calls $prompt $completion) (AiLLM:Fault ledger-protocol))))
+        ($other (AiLLM:Fault ledger))))))
 (= (ai-math:llm-endpoint $endpoint)
    (if (str:ends-with $endpoint "/")
      (ai-math:llm-endpoint (str:byte-slice $endpoint 0 (- (str:byte-length $endpoint) 1)))
@@ -112,7 +134,21 @@
       ($other $other))))
 (= (ai-math:llm-call $client $messages)
    (ai-math:llm-call-with $client $messages ()))
+(= (ai-math:llm-extra-valid $extra)
+   (if (== (get-metatype $extra) Expression)
+     (and (foldl-atom $extra true $ok $pair
+            (and $ok (case $pair
+              (((JsonPair $key $value)
+                (and (== (get-type $key) String)
+                  (not (ai-math:contains ("model" "messages" "temperature" "max_tokens" "max_completion_tokens") $key))))
+               ($other false)))))
+          (let $keys (map-atom $extra $pair (index-atom $pair 1))
+            (and (== (size-atom $keys) (size-atom (unique-atom $keys)))
+                 (== (get-type (json:stringify (JsonObject $extra))) String)))) false))
 (= (ai-math:llm-call-with $client $messages $extra)
+   (if (ai-math:llm-extra-valid $extra)
+     (ai-math:llm-call-admitted $client $messages $extra) (AiLLM:Fault provider-options)))
+(= (ai-math:llm-call-admitted $client $messages $extra)
    (if (ai-math:contains (io:capabilities) http)
      (case (ai-math:llm-reserve $client)
        (((AiLLM:Reserved $reservation)
@@ -170,6 +206,9 @@
              (AiLLM:Reply "" $receipt)))
           ($other $other)))) (AiLLM:Fault retry-policy)))
 (= (ai-math:llm-chat $client $messages $retries)
+   (ai-math:llm-chat-with $client $messages $retries ()))
+(= (ai-math:llm-chat-with $client $messages $retries $extra)
    (case $client
-     (((AiLLM $config $session) (ai-math:llm-chat-ready $client $messages $retries))
+     (((AiLLM $config $session) (ai-math:llm-chat-ready $client $messages $retries $extra
+         (ai-math:option (ai-math:llm-config $client Options) salvage true)))
       ($other $other))))

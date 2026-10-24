@@ -1,0 +1,12 @@
+{
+  "mode": "prop",
+  "corpus": "data/corpus.sexpr",
+  "goals": ["orIL"],
+  "output": "results/cetta-research-prop.jsonl",
+  "resume": false,
+  "options": {
+    "use_duper": false,
+    "max_depth": 10,
+    "budget": [30000, 200000, 8000]
+  }
+}

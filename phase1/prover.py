@@ -2,14 +2,14 @@
 
 For one goal:
   1. Search ranks the facts available before the goal.
-  2. Vampire (untrusted) tries to prove the goal from those facts; if it
+  2. Vampire tries to prove the goal from those facts; if it
      succeeds, the facts its proof used become the premise hint set.
   3. A deterministic battery of Lean tactic scripts is built from the hints
      and checked by Lean (trusted) with the statement-identity check and
      the leak guard. First script that passes wins.
 
 An optional LLM (see llm.py, added later) plugs in between 2 and 3 as one
-more source of candidate tactic scripts -- also untrusted, also checked by
+more source of candidate tactic scripts -- also checked by
 Lean and the leak guard in exactly the same way.
 """
 import os

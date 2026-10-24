@@ -280,7 +280,7 @@
             ($input
              (ai-math:vampire-observation $context $problem
                (proc:run ($executable "--mode" "portfolio" "--input_syntax" "tptp"
-                          "--output_axiom_names" "on" "--proof" "tptp"
+                          "--proof" "tptp"
                           "-t" (str:number->string $seconds))
                  ((lifetime owner) (stdin $input) (timeout-ms (if (== $seconds 0) 0 (+ (* $seconds 1000) 15000)))))))))))
       ($request $request))))
@@ -327,22 +327,32 @@
 ; distinct from parsed proof records in the retained report.
 (= (ai-math:atp-summary $report)
    (case $report
-     (((AiATP:Report $status $names $definitions $refs
-         (proc:result (proc:exited 0) proc:normal $stdout $stderr
-           (proc:capture $out-seen $out-kept $err-seen $err-kept proc:eof proc:eof
-             (proc:input $input-size $input-sent)))
-         (TPTP:SZSEnvelope $statuses $blocks TPTP:SZSComplete ()) $payloads)
-       (if (and (== $out-seen $out-kept) (== $input-size $input-sent))
-         (if (foldl-atom $payloads true $ok $payload
-               (and $ok (if (== $payload ()) true
-                 (ai-math:vampire-payload-advice-ready $payload))))
-           (case $status
-             (((TPTP:SZSReported $word) (AiATP:Advice $word $names $definitions))
-              ($other (AiATP:UnresolvedStatus $other))))
-           (AiATP:PayloadInterpretationNeeded $payloads))
-         (AiATP:IncompleteCapture $status)))
-      ((AiATP:Report $status $names $definitions $refs $observation $envelope $payloads)
-       (AiATP:UnfinishedOrFaulted $status $observation $envelope))
+     (((AiATP:Report $status $names $definitions $refs $observation $envelope $payloads)
+       (case ($observation $envelope)
+         ((((proc:result (proc:exited $exit) proc:normal $stdout $stderr
+              (proc:capture $out-seen $out-kept $err-seen $err-kept proc:eof proc:eof
+                (proc:input $input-size $input-sent)))
+            (TPTP:SZSEnvelope $statuses $blocks TPTP:SZSComplete ()))
+           ; Vampire's normal unsuccessful return is 1. It does not license
+           ; proof advice, missing status, abnormal termination or partial I/O.
+           (let $compatible (case ($exit $status)
+                  (((0 $reported) true)
+                   ((1 (TPTP:SZSReported $word))
+                    (ai-math:contains ("Timeout" "ResourceOut" "MemoryOut" "GaveUp") $word))
+                   ($other false)))
+             (if $compatible
+               (if (and (== $out-seen $out-kept)
+                        (and (== $err-seen $err-kept) (== $input-size $input-sent)))
+                 (if (foldl-atom $payloads true $ok $payload
+                       (and $ok (if (== $payload ()) true
+                         (ai-math:vampire-payload-advice-ready $payload))))
+                   (case $status
+                     (((TPTP:SZSReported $word) (AiATP:Advice $word $names $definitions))
+                      ($other (AiATP:UnresolvedStatus $other))))
+                   (AiATP:PayloadInterpretationNeeded $payloads))
+                 (AiATP:IncompleteCapture $status))
+               (AiATP:UnfinishedOrFaulted $status $observation $envelope))))
+          ($other (AiATP:UnfinishedOrFaulted $status $observation $envelope)))))
       ($other $other))))
 
 (= (ai-math:atp-goal $context $search $goal-name $executable $seconds $limit)

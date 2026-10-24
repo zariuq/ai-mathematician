@@ -41,24 +41,21 @@
                 (and (== $err-seen $err-kept) (== $input-size $input-sent)))
          (AiITP:ProcessText $out) (AiITP:Fault "" preparation-capture $observation)))
       ($other (AiITP:Fault "" preparation-process $observation)))))
-; A native bundle is explicit preparation, never a stale executable cache.
-; Its source manifest and compiler installation are checked once per context.
+; Make owns native build dependencies. Runtime uses the compiled bundle and
+; checks its compiler installation, not mutable Lean source fingerprints.
 (= (ai-math:itp-native-execution $root $lean)
    (let $directory (str:concat $root "/.cetta/lean-native")
-     (if (foldl-atom ("itp-guard" "itp-worker" "sources.sha256" "sysroot.txt") true $ok $file
+     (if (foldl-atom ("itp-guard" "itp-worker" "sysroot.txt"
+                     "lib/MegLib.olean" "lib/Bridge.olean" "lib/CettaProofTactics.olean"
+                     "lib/CettaITP.olean" "lib/CettaProposalView.olean" "lib/CettaITPGuard.olean") true $ok $file
            (and $ok (fs:exists (str:join "/" ($directory $file)))))
        (case (ai-math:itp-complete-process-text
                (proc:run ($lean "--print-prefix") ((cwd $root))))
          (((AiITP:ProcessText $prefix)
            (if (== (str:trim $prefix) (str:trim (fs:read-text (str:concat $directory "/sysroot.txt"))))
-             (case (ai-math:itp-complete-process-text
-                     (proc:run ("sha256sum" "--check" "--status"
-                                (str:concat $directory "/sources.sha256")) ((cwd $root))))
-               (((AiITP:ProcessText $checked)
-                 (AiITP:Native (str:concat $directory "/itp-guard")
-                   (str:concat $directory "/itp-worker") (str:trim $prefix)
-                   (str:concat $directory "/lib")))
-                ($other (AiITP:PreparationNeeded $root stale-native-bundle))))
+             (AiITP:Native (str:concat $directory "/itp-guard")
+               (str:concat $directory "/itp-worker") (str:trim $prefix)
+               (str:concat $directory "/lib"))
              (AiITP:PreparationNeeded $root native-toolchain)))
           ($other $other)))
        (AiITP:PreparationNeeded $root native))))

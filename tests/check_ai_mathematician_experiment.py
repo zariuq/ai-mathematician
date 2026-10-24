@@ -10,7 +10,7 @@ import sys
 import tempfile
 
 from check_ai_mathematician_atp import read_values
-from check_ai_mathematician_library import ROOT, quote
+from check_ai_mathematician_library import ROOT, quote, read_atoms
 from check_ai_mathematician_prover import prelude as prover_prelude
 
 
@@ -45,6 +45,12 @@ def check_cli_boundary(binary, corpus, vampire, lean, directory):
     assert "AiRun:Summary" in ran.stdout, ran.stdout[:2000]
     rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
     assert len(rows) == 1 and rows[0]["schema"] == "ai-math.run.v1", rows
+    descriptor = read_atoms(rows[0]['descriptor'])[0]
+    assert len(descriptor) == 7 and descriptor[6][0] == 'AiRun:Toolchain', descriptor
+    artifacts = {path: checksum for path, checksum in descriptor[4]}
+    assert all(not path.endswith('.lean') for path in artifacts), artifacts
+    assert any(path.endswith('/CettaITPGuard.olean') and len(checksum) == 64
+               for path, checksum in artifacts.items()), artifacts
     invalid_log = directory / "invalid shard must not create a log.jsonl"
     rejected = subprocess.run([
         str(binary), "--lang", "petta@1.0.6",
@@ -55,7 +61,7 @@ def check_cli_boundary(binary, corpus, vampire, lean, directory):
     assert rejected.returncode == 2 and "AiRun:Request shard" in rejected.stdout, \
         rejected.stderr or rejected.stdout[:2000]
     assert not invalid_log.exists(), invalid_log
-    return 7
+    return 10
 
 
 def check_publication(binary, directory):

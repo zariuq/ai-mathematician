@@ -21,7 +21,8 @@ def main():
     args = parser.parse_args()
     if min(args.limit, args.wall_ms, args.heartbeats) < 0:
         parser.error('counts must be nonnegative')
-    files = args.input or [ROOT / 'results/llm_proofs_verified.json', ROOT / 'results/v6v7_verified.json']
+    files = args.input or [ROOT / 'results/llm_proofs_verified.json', ROOT / 'results/v6v7_verified.json',
+                           ROOT / 'results/v8v9_verified.json']
     requests = []
     for path in files:
         rows = json.loads(path.read_text())['verified']

@@ -11,6 +11,7 @@ data/corpus.sexpr
 
 # run outputs
 results/*.jsonl
+!results/recheck_v4.jsonl
 results/*.log
 __pycache__/
 *.pyc
@@ -37,3 +38,5 @@ results/*ledger*.jsonl
 
 # embedding caches (regenerable, large)
 results/emb_*.json
+results/lean_sigs.json
+tools/repl/

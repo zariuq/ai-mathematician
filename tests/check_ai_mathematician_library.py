@@ -186,9 +186,10 @@ def main():
     if completed.returncode or "❌" in completed.stderr + completed.stdout:
         raise AssertionError("MeTTa examples:\n" + (completed.stderr or completed.stdout))
     observations = completed.stdout.splitlines()
-    if observations.count("true") != 9 or completed.stdout.count("✅") != 8:
+    expected_controls = len(re.findall(r"^!\(test\b", fixture.read_text(), re.M))
+    if observations.count("true") != expected_controls + 1 or completed.stdout.count("✅") != expected_controls:
         raise AssertionError(f"unexpected example observations: {completed.stdout}")
-    checks += 8
+    checks += expected_controls
 
     fixture_data = ROOT / "tests/fixtures/ai_mathematician_library.sexpr"
     rows, elapsed = run(cetta, f"(ai-math:load-library {quote(fixture_data)})", args.language)

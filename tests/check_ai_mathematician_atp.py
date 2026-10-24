@@ -238,23 +238,29 @@ def compare_corpus(binary, path, library, oracle, output, *, all_goals, ranked=F
              $ids (map-atom $skipped $entry (index-atom $entry 1)) $frontier))))
       ((AiTHF:InterpretationRequest $why $term) (Request $index $why)))))
 """
-    program += f"""
-!(let* (($decls (ai-math:load-library {quote(path)})) ($context (ai-math:thf $decls {quote(path)})))
-   (Comparisons {' '.join(requests)}))
-"""
-    observed = execute(binary, program, output)
-    assert observed[0] == "Comparisons" and len(observed) - 1 == len(wanted)
     checks = 0
-    for result, (name, unsupported, ids, skipped) in zip(observed[1:], wanted):
-        if unsupported:
-            assert result[0] == "Request", (name, result)
-            checks += 1
-        else:
-            assert result[0] == "Comparison" and result[2] == "true", (name, result)
-            assert associative(result[3]) == associative(result[4]), (name, result[3], result[4])
-            assert {entry[1]: entry[2] for entry in result[5]} == ids, (name, result[5], ids)
-            assert Counter(result[6]) == skipped, (name, result[6], skipped)
-            checks += 3
+    # The observation is pointwise: retaining every translated syntax tree at
+    # once adds no coverage. Bound each report while checking the same goals,
+    # slices, identifiers, skipped occurrences and associativity quotient.
+    for start in range(0, len(requests), 48):
+        batch = requests[start:start + 48]
+        report = program + f"""
+!(let* (($decls (ai-math:load-library {quote(path)})) ($context (ai-math:thf $decls {quote(path)})))
+   (Comparisons {' '.join(batch)}))
+"""
+        observed = execute(binary, report, output)
+        assert observed[0] == "Comparisons" and len(observed) - 1 == len(batch)
+        for result, (name, unsupported, ids, skipped) in zip(observed[1:], wanted[start:start + 48], strict=True):
+            if unsupported:
+                assert result[0] == "Request", (name, result)
+                checks += 1
+            else:
+                assert result[0] == "Comparison" and result[2] == "true", (name, result)
+                assert associative(result[3]) == associative(result[4]), (name, result[3], result[4])
+                assert {entry[1]: entry[2] for entry in result[5]} == ids, (name, result[5], ids)
+                assert Counter(result[6]) == skipped, (name, result[6], skipped)
+                checks += 3
+        print(f'ATPTranslationProgress {path.name} {start + len(batch)}/{len(requests)} profiles', flush=True)
     print(f"ATPTranslation {path.name} {len(goals)} goals {len(wanted)} profiles {checks} checks", flush=True)
     return checks
 
@@ -265,11 +271,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cetta", required=True, type=Path)
     parser.add_argument("--vampire", required=True, type=Path)
-    parser.add_argument("--oracle-dir", type=Path, default=ROOT / "phase1")
+    from python_oracle import oracle_directory
+    parser.add_argument("--oracle-dir", type=Path)
     parser.add_argument("--corpus", type=Path)
     parser.add_argument("--generated", type=int, default=64)
     parser.add_argument("--output", type=Path, default=ROOT / ".cetta/atp")
     args = parser.parse_args()
+    if args.oracle_dir is None:
+        args.oracle_dir = oracle_directory()
     binary = Path(shutil.which(str(args.cetta)) or args.cetta).resolve()
     vampire = Path(shutil.which(str(args.vampire)) or args.vampire).resolve()
     if not vampire.is_file():
