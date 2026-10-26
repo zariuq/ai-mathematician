@@ -4,6 +4,10 @@ A system for proving mathematical lemmas by combining automated search,
 automated theorem proving, language models, and a proof checker, where
 **nothing counts as proved unless Lean 4's kernel accepts it.**
 
+This `cetta` branch also runs Phase 1 natively in MeTTa on CeTTa; start with
+the [CeTTa quick start](#cetta-quick-start). The original Python implementation
+and its benchmark history are retained below.
+
 Built phase by phase:
 
 | Phase | Components | Status |
@@ -12,7 +16,45 @@ Built phase by phase:
 | 2 | Inference controller (LLM + Hyperon) · Math Atomspace working memory / long-term memory · research papers → long-term memory | Next |
 | 3 | PLN (probabilistic logic networks) feeding the inference controller | Not started |
 
-## Phase 1 result
+## CeTTa quick start
+
+Use the [CeTTa integration branch](https://github.com/zariuq/CeTTa/tree/oruzi-prime-nik-20260811)
+with `--lang petta`. [CETTA.txt](CETTA.txt) covers the engine build, corpus
+preparation, reusable MeTTa operations and configuration. The application
+needs neither Python nor Prolog at runtime; build and qualification tools
+may use Python. The native proof guard requires Linux user namespaces and
+Bubblewrap. Lean 4.34.0 and the Duper dependency are pinned in this repository.
+
+With CeTTa available as `cetta` and the reference export at `data/corpus.sexpr`,
+run from this repository's root:
+
+```bash
+make prepare-cetta-itp-native prepare-cetta-duper
+python3 tests/acquire_ai_mathematician_vampire.py
+cp cetta-run.example.json cetta-run.json
+# Edit the corpus and output paths in cetta-run.json as needed.
+make run-cetta CETTA=cetta RUN_CONFIG=cetta-run.json
+```
+
+The example runs four goals without model calls. To check the supplied proof
+bundle instead, with no Vampire or model requests:
+
+```bash
+make replay-cetta CETTA=cetta CORPUS=data/corpus.sexpr
+```
+
+**Exact-script replay: 875 / 875 passed** through MeTTa and the independent
+Lean guard, including 50 Duper scripts and seven scripts with helper lemmas.
+See the [replay summary](results/cetta_replay_summary.json) and
+[per-goal results](results/cetta_replay.jsonl). The replay qualification
+driver accepts `--limit 5` for a small sample; the guide covers parallel
+checking and resuming qualification.
+
+For step-by-step controller experiments, CeTTa's
+[process-stream interface](https://github.com/zariuq/CeTTa/blob/oruzi-prime-nik-20260811/docs/process_stream.txt)
+can keep a Lean REPL running between requests; it includes a connection test.
+
+## Phase 1 result (Python reference)
 
 On the 999-theorem reference library (Megalodon's `100thms_12.mg`,
 translated to Lean 4 by the companion
@@ -167,6 +209,9 @@ When Vampire finds a proof, the premises it used go to Lean's automation;
 when it does not (most of the hardest theorems), the LLM works from
 Search's top 160 facts directly.
 
+The following file map describes the Python reference. The MeTTa modules and
+entry points are described in [CETTA.txt](CETTA.txt).
+
 - `phase1/library.py`: loads every declaration from Megalodon's typed
   export, in order, with the symbols each mentions.
 - `phase1/search.py`: ranks earlier facts for a goal (rare shared
@@ -195,7 +240,7 @@ Search's top 160 facts directly.
 - `phase1/experiments/`: one-off experiment drivers, kept so every number
   here can be reproduced (see its README).
 
-## Setup
+## Setup (Python reference)
 
 Requires Python 3.8+ (standard library only), Lean 4.34.0, and Vampire.
 
@@ -235,7 +280,7 @@ For the LLM plug-in only: create `.env` in the repo root (git-ignored)
 with `LLM_API_KEY=...` and `LLM_BASE_URL=...` (an OpenAI-compatible
 endpoint).
 
-## Running
+## Running (Python reference)
 
 ```bash
 cd phase1
