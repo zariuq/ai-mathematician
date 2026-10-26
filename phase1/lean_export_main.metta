@@ -1,4 +1,4 @@
-; cetta --no-results --lang petta@1.0.6 lean_export_main.metta corpus.sexpr All.lean
+; cetta --no-results --lang petta lean_export_main.metta corpus.sexpr All.lean
 !(import! &self "library.metta")
 !(import! &self (library list))
 !(import! &self system)

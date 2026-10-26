@@ -10,6 +10,7 @@ RUN_CONFIG ?= cetta-run.json
 RESEARCH_CONFIG ?= cetta-research.example.json
 ZIPPER ?= tools/duper-env/.lake/packages/auto/.lake/build/zipperposition.exe
 ITP_RUNTIME ?= native
+PROOF_BUNDLE ?= results/proof_bundle.jsonl
 LEANC ?= $(shell "$(LEAN)" --print-prefix)/bin/leanc
 ITP_NATIVE := .cetta/lean-native
 ITP_COMPILER := .cetta/lean-compiler.txt
@@ -41,7 +42,7 @@ run-cetta: prepare-cetta-itp-native
 	LEAN_BIN="$(if $(findstring /,$(LEAN)),$(abspath $(LEAN)),$(LEAN))" \
 	VAMPIRE_BIN="$(if $(findstring /,$(VAMPIRE)),$(abspath $(VAMPIRE)),$(VAMPIRE))" \
 	CETTA_ITP_RUNTIME="$(ITP_RUNTIME)" \
-	"$(CETTA)" --no-results --lang petta@1.0.6 phase1/workers_main.metta "$(RUN_CONFIG)"
+	"$(CETTA)" --no-results --lang petta phase1/workers_main.metta "$(RUN_CONFIG)"
 
 test-cetta-workers: prepare-cetta-itp
 	$(PYTHON) tests/check_ai_mathematician_workers.py --cetta "$(CETTA)" --lean "$(LEAN)" \
@@ -190,7 +191,7 @@ qualify-cetta-functionality:
 
 .PHONY: run-cetta-research test-cetta-research
 run-cetta-research: prepare-cetta-itp-native
-	CETTA_ITP_RUNTIME="$(ITP_RUNTIME)" "$(CETTA)" --no-results --lang petta@1.0.6 \
+	CETTA_ITP_RUNTIME="$(ITP_RUNTIME)" "$(CETTA)" --no-results --lang petta \
 		phase1/research_main.metta "$(RESEARCH_CONFIG)"
 
 test-cetta-research:
@@ -199,3 +200,8 @@ test-cetta-research:
 
 test-cetta-layout-runtime:
 	$(PYTHON) tests/check_cetta_layout_runtime.py --cetta "$(CETTA)" --cetta-source "$(CETTA_SOURCE)"
+
+.PHONY: replay-cetta
+replay-cetta: prepare-cetta-itp-native prepare-cetta-duper
+	CETTA_ITP_RUNTIME="$(ITP_RUNTIME)" LEAN_BIN="$(LEAN)" \
+	"$(CETTA)" --no-results --lang petta phase1/replay_main.metta "$(CORPUS)" "$(PROOF_BUNDLE)"

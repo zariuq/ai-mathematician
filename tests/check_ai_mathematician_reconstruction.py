@@ -22,7 +22,7 @@ def main():
     args = parser.parse_args()
     binary = Path(shutil.which(str(args.cetta)) or args.cetta).resolve()
     unit = ROOT / "tests/metta/ai_mathematician_induction.metta"
-    ran = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(unit)],
+    ran = subprocess.run([str(binary), "--lang", "petta", str(unit)],
                          text=True, capture_output=True, cwd=ROOT, check=False)
     count = len(re.findall(r"^!\(test\b", unit.read_text(), re.M))
     assert ran.returncode == 0 and ran.stdout.count("✅") == count, ran.stdout + ran.stderr

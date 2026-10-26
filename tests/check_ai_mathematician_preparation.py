@@ -56,7 +56,7 @@ def main():
     for label, source in [('baseline', a.baseline), ('candidate', a.candidate)]:
         driver = a.output / (label + '.metta')
         driver.write_text(snapshot(a.corpus.resolve(), source.resolve()))
-        result = subprocess.run([str(a.cetta.resolve()), '--lang', 'petta@1.0.6', str(driver.resolve())],
+        result = subprocess.run([str(a.cetta.resolve()), '--lang', 'petta', str(driver.resolve())],
                                 cwd=ROOT, capture_output=True, timeout=180)
         (a.output / (label + '.stdout')).write_bytes(result.stdout)
         (a.output / (label + '.stderr')).write_bytes(result.stderr)

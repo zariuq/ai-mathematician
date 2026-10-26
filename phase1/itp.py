@@ -69,6 +69,10 @@ open Lean in
     if let some v := ci.value? (allowOpaque := true) then
       for c in v.getUsedConstants do todo := todo.push c
   IO.println s!"GUARD used {String.intercalate " " (used.toList.map toString)}"
+  -- every axiom the proof depends on, through all its dependencies
+  let axs ← collectAxioms `Megalodon.{att}
+  IO.println s!"GUARD axioms {String.intercalate " " (axs.toList.map toString)}"
+  IO.println "GUARD done"
 '''
 
 
@@ -102,13 +106,43 @@ def check(target, statement_sig, tactic, timeout=60):
     if re.search(r":\d+:\d+: error", out):
         first = next(l for l in out.splitlines() if ": error" in l)
         return False, "lean error: " + first.split(": error", 1)[1][:160], []
-    m = re.search(r"GUARD samestmt (\w+)", out)
+    if r.returncode != 0:
+        return False, f"lean exited with status {r.returncode}", []
+    return guard_verdict(out)
+
+
+def library_axioms(meglib_path=os.path.join(LIB, "MegLib.lean")):
+    """The axioms of the pinned library, read from its source."""
+    return {"Megalodon." + l.split()[1] for l in open(meglib_path, encoding="utf-8")
+            if l.startswith("axiom ")}
+
+
+# A proof may rest on the library's own axioms and Lean's three standard ones,
+# nothing else: not sorryAx, not an axiom it declares itself, not the compiler
+# trust behind native_decide.
+ALLOWED_AXIOMS = library_axioms() | {"propext", "Classical.choice", "Quot.sound"}
+
+
+def guard_verdict(out, tag=""):
+    """Read the guard's report. Fail closed: the statement check, the
+    dependency list, the axiom list and the completion marker must all be
+    present, or the attempt is rejected (an error inside the guard stops it
+    before the marker)."""
+    m = re.search(rf"GUARD{re.escape(tag)} samestmt (\w+)", out)
     if not m or m.group(1) != "true":
         return False, "statement mismatch", []
-    m = re.search(r"GUARD used ?(.*)", out)
-    used = m.group(1).split() if m else []
+    m = re.search(rf"GUARD{re.escape(tag)} used ?(.*)", out)
+    if not m or not re.search(rf"GUARD{re.escape(tag)} done", out):
+        return False, "incomplete guard output", []
+    used = m.group(1).split()
     if any(u == "sorryAx" for u in used):
         return False, "uses sorryAx", used
+    m = re.search(rf"GUARD{re.escape(tag)} axioms ?(.*)", out)
+    if not m:
+        return False, "incomplete guard output", used
+    extra = sorted(set(m.group(1).split()) - ALLOWED_AXIOMS)
+    if extra:
+        return False, "axioms not allowed: " + " ".join(extra), used
     return True, "ok", used
 
 

@@ -26,9 +26,34 @@ def rows(name):
 v1 = {r["goal"]: r for r in rows("phase1_full_v1.jsonl")}
 v2 = {r["goal"]: r for r in rows("phase1_full_v2.jsonl")}
 v3 = {r["goal"]: r for r in rows("phase1_full_v3.jsonl")}
+v4 = {r["goal"]: r for r in rows("phase1_full_v4.jsonl")}
 P1 = {g for g, r in v1.items() if r["proved_by"]}
 P2 = {g for g, r in v2.items() if r["proved_by"]}
 P3 = {g for g, r in v3.items() if r["proved_by"]}
+P4 = {g for g, r in v4.items() if r["proved_by"]}
+
+
+def verified(name):
+    """Goals whose LLM proof passed the from-scratch re-check, mapped to the
+    result file each proof came from."""
+    return {g: v["source"] for g, v in
+            json.load(open(os.path.join(R, name)))["verified"].items()}
+
+
+summary = json.load(open(os.path.join(R, "phase1_final_summary.json")))
+EARLIER = set(summary["earlier_experiments"])   # induction etc., no LLM
+NOLLM = P4 | EARLIER
+L5 = set(verified("llm_proofs_verified.json"))
+L67 = verified("v6v7_verified.json")
+L89 = verified("v8v9_verified.json")
+L7 = {g for g, src in L67.items() if os.path.basename(src).startswith("v7")}
+L6 = set(L67) - L7
+L8 = {g for g, src in L89.items() if os.path.basename(src).startswith("v8")}
+L9 = set(L89) - L8
+LLM_ALL = L5 | set(L67) | set(L89)
+FINAL = NOLLM | LLM_ALL
+recheck4 = rows("recheck_v4.jsonl")
+rc4_ok = sum(bool(x.get("ok")) for x in recheck4)
 llm = {r["goal"] for f in ("llm140_gptoss.jsonl", "llm140_deepseek.jsonl")
        for r in rows(f) if r["proved_by"]}
 cat = json.load(open(cat_path))
@@ -45,44 +70,44 @@ def pct(a, b):
 
 
 first = Counter()
-for r in v3.values():
+for r in v4.values():
     if r["proved_by"]:
         lbl = r["proved_by"]
         first["induction" if lbl.startswith("induction") else lbl.split("#")[0]] += 1
-ind = Counter(r["proved_by"].split(":")[1] for r in v3.values()
+ind = Counter(r["proved_by"].split(":")[1] for r in v4.values()
               if r["proved_by"] and r["proved_by"].startswith("induction"))
-unproved = [r for r in v3.values() if not r["proved_by"]]
-secs_p = sorted(r["secs"] for r in v3.values() if r["proved_by"])
+unproved = [r for r in v4.values() if not r["proved_by"]]
+secs_p = sorted(r["secs"] for r in v4.values() if r["proved_by"])
 secs_f = sorted(r["secs"] for r in unproved)
 unproved_vamp = sum(r["vampire"].startswith("Theorem") for r in unproved)
 
 d = Doc("AI Mathematician: Phase 1 Report", "yenat")
 d.heading("AI Mathematician — Phase 1 Report", 0)
 d.para("Search · ATP (Vampire) · ITP (Lean 4) · LLM proposer, evaluated on the "
-       "999-theorem Megalodon reference library. September 2026.")
+       "999-theorem Megalodon reference library. October 2026.")
 
 # ------------------------------------------------------------------ summary
 d.heading("1. Summary", 1)
 d.bullets([
-    f"**{len(P3)} / 999 theorems ({pct(len(P3), 999)}) proved with no LLM**, in "
-    "a single run of the integrated pipeline, each theorem held out and proved "
-    "only from facts that precede it in the library.",
-    f"**{len(P3 | llm)} / 999 ({pct(len(P3 | llm), 999)})** when the "
-    f"{len(llm)} proofs found earlier by the LLM feedback loop are included.",
+    f"**{len(FINAL)} / 999 theorems ({pct(len(FINAL), 999)}) proved**, each "
+    "held out and proved only from facts that precede it in the library.",
+    f"**{len(NOLLM)}** without any LLM ({len(P4)} in the v4 pipeline run, "
+    f"{len(EARLIER)} more from induction and earlier runs), and **{len(LLM_ALL)}** "
+    "by the LLM loop, all on theorems the pipeline had attempted and failed.",
     "Every proof is checked by Lean 4's kernel, with the proof's statement "
     "compared to the original as elaborated terms and a leak guard rejecting any "
-    "use of the target or later facts."
-    + (f" All {len(recheck)} no-LLM proofs were re-verified in fresh Lean "
-       f"processes: {rc_ok} / {len(recheck)} passed." if recheck else ""),
-    "Vampire and the LLM are untrusted proposers; only Lean decides.",
-    "The LLM informal-proof → formal-outline path is built and runs end to end. "
-    + (f"On a fixed sample of {len(dsp)} of the hardest remaining theorems it "
-       f"proved {sum(bool(r['proved_by']) for r in dsp)} within a 100-call "
-       "budget; Section 6.2 analyses why." if dsp else ""),
-    f"Progression over three full runs: {len(P1)} → {len(P2)} → {len(P3)}, "
-    "through learned premise selection, automatic induction, strategies "
-    "distilled from LLM proofs, using every proof Vampire finds, and a larger "
-    "Vampire budget.",
+    "use of the target or later facts. "
+    f"All {len(recheck4)} v4 proofs were re-verified in fresh Lean processes "
+    f"({rc4_ok} / {len(recheck4)}), and every LLM proof was re-verified from "
+    f"scratch ({len(LLM_ALL)} / {len(LLM_ALL)}).",
+    "Vampire and the LLM only propose proofs; every proof is verified by Lean.",
+    "The decisive finding for the LLM: its failures were mostly about missing "
+    "lemmas, not reasoning. Showing it 96 to 160 facts instead of 24 added "
+    "about 100 proofs (Section 6.3).",
+    f"Progression: {len(P1)} → {len(P2)} → {len(P3)} → {len(P4)} without an LLM "
+    f"(v1–v4), then {len(NOLLM | L5)} → {len(NOLLM | L5 | L6)} → "
+    f"{len(NOLLM | L5 | L6 | L7)} → {len(NOLLM | L5 | L6 | L7 | L8)} → "
+    f"{len(FINAL)} with the LLM loop (v5–v9).",
 ])
 
 # ------------------------------------------------------------------ scope
@@ -99,7 +124,7 @@ d.table([
     ["ITP", "Lean 4.34.0 over the verified Megalodon→Lean 4 translation "
      "(999/999 theorems)", "Done"],
     ["LLM guiding the ITP", "LLM writes Lean tactic scripts; Lean's errors fed "
-     "back for up to 3 rounds", "Done, evaluated (Section 6)"],
+     "back for up to 7 rounds", f"Done: {len(LLM_ALL)} theorems (Section 6)"],
     ["LLM proving lemma → formalizing", "Draft–Sketch–Prove: informal proof → "
      "Lean outline with gaps → ATP/ITP tactics fill gaps",
      "Done" + (", evaluated (Section 6)" if dsp else "; evaluation pending")],
@@ -137,17 +162,17 @@ d.para("The compiled library contains all 999 theorems, so without (3) a proof "
 
 # ------------------------------------------------------------------ pipeline
 d.heading("4. Pipeline", 1)
-d.code("goal ─► Search ─► earlier facts ─► Vampire (16–128 facts, 30 s)\n"
+d.code("goal ─► Search ─► earlier facts ─► Vampire (16–512 facts, 30 s)\n"
        "                                     │ proof            │ no proof\n"
        "                                     ▼                  ▼\n"
        "                          facts it used      induction split,\n"
        "                                     │       Vampire per case\n"
        "                                     ▼                  │\n"
-       "                   Lean tactic battery ◄────────────────┘\n"
+       "          Lean: battery → follow-ups → apply → Duper ◄──┘\n"
        "                   (kernel + statement check + leak guard)\n"
        "                                     │ all fail\n"
        "                                     ▼\n"
-       "                   LLM proposes ─► Lean ─► error back to LLM")
+       "   LLM (Search's top 160 facts) proposes ─► Lean ─► error back to LLM")
 d.heading("4.1 Search (premise selection)", 2)
 d.para("Ranks the facts preceding the goal by a sum of: IDF-weighted symbol "
        "overlap (MePo-style); k-NN votes from the dependencies of the most "
@@ -167,8 +192,8 @@ d.heading("4.2 ATP: Vampire", 2)
 d.para("Goal and ranked facts are rendered as THF; Megalodon's encoded "
        "connectives (`and`, `or`, `iff`, `ex`, Leibniz `eq`, …) map to native "
        "ones, and definitions are included transitively (depth 3). Vampire runs "
-       "in portfolio mode for 30 s on the top 16, 32, 64 and 128 facts (v2 "
-       "used 5 s on 16/32/64). Its proof is "
+       "in portfolio mode for 30 s on the top 16, 32, 64, 128, 256 and 512 facts "
+       "(v2 used 5 s on 16/32/64; v4 added 256 and 512). Its proof is "
        "not reused directly: the facts it used become the premise hints for "
        "Lean. Vampire proofs are not unique, and the facts of one proof may suit "
        "Lean better than another's, so every distinct premise set is kept.")
@@ -181,7 +206,9 @@ d.para("Kernel-checked bridge lemmas (`b_and`, `b_or`, `b_ex`, `b_eq`, …) turn
        "extensionality. The last two were distilled from the proofs the LLM "
        "found in v1. If the whole battery fails, a slower second line runs "
        "(v3): premises as `grind` e-matching lemmas, higher `grind` effort, and "
-       "`simp_all` with premises and definitions.")
+       "`simp_all` with premises and definitions. v4 added a third line of "
+       "`apply` strategies and a fourth, Duper, a superposition prover running "
+       "inside Lean that handles the higher-order instances `grind` cannot.")
 d.table([["Strategy (first success)", "Theorems"]] +
         [[k, str(v)] for k, v in first.most_common()], widths=[4500, 2000])
 d.heading("4.4 Automatic induction", 2)
@@ -208,24 +235,28 @@ d.table([
     ["v1: Search (overlap, k-NN, recency) + Vampire + battery", str(len(P1)), pct(len(P1), 999)],
     ["v2: + learned Search, induction, distilled strategies, all Vampire proofs",
      str(len(P2)), pct(len(P2), 999)],
-    ["**v3: + Vampire 30 s with a 128-fact slice, second-line Lean strategies**",
-     f"**{len(P3)}**", f"**{pct(len(P3), 999)}**"],
+    ["v3: + Vampire 30 s with a 128-fact slice, second-line Lean strategies",
+     str(len(P3)), pct(len(P3), 999)],
+    ["**v4: + Duper, 256/512-fact slices, `apply` strategies**",
+     f"**{len(P4)}**", f"**{pct(len(P4), 999)}**"],
+    ["v4 + induction and earlier runs (no LLM)", str(len(NOLLM)), pct(len(NOLLM), 999)],
 ], widths=[6000, 1500, 1500])
-rows_c = [["Category", "Theorems", "v1", "v2", "v3"]]
+rows_c = [["Category", "Theorems", "v1", "v3", "v4", "Final (with LLM)"]]
 for c, label in CATS:
     tot = sum(1 for g in cat if cat[g] == c)
     cells = [label, str(tot)]
-    for P in (P1, P2, P3):
+    for P in (P1, P3, P4, FINAL):
         a = sum(1 for g in cat if cat[g] == c and g in P)
         cells.append(f"{a} ({a / tot:.0%})")
     rows_c.append(cells)
-d.table(rows_c, widths=[2600, 1300, 1700, 1700, 1700])
+d.table(rows_c, widths=[2400, 1200, 1400, 1400, 1400, 1700])
 d.caption("Categories from the translator's vocabulary heuristic; approximate.")
 d.para(f"v2 against v1: {len(P2 - P1)} theorems gained, {len(P1 - P2)} lost. "
-       f"v3 against v2: {len(P3 - P2)} gained, {len(P2 - P3)} lost. The losses are "
+       f"v3 against v2: {len(P3 - P2)} gained, {len(P2 - P3)} lost; v4 against v3: "
+       f"{len(P4 - P3)} gained, {len(P3 - P4)} lost. The losses are "
        "borderline goals where Vampire found a different proof, or none within "
        "its time limit; the pipeline has run-to-run variation on such goals.")
-d.para(f"Unproved: {len(unproved)}. For {unproved_vamp} of them Vampire found a "
+d.para(f"Unproved by v4: {len(unproved)}. For {unproved_vamp} of them Vampire found a "
        f"proof that the Lean battery could not rebuild; for "
        f"{len(unproved) - unproved_vamp} Vampire found none.")
 d.para("**How v3 was chosen.** Two targeted experiments on the v2 failures, "
@@ -238,19 +269,18 @@ d.para("**How v3 was chosen.** Two targeted experiments on the v2 failures, "
 d.para("The typical remaining reconstruction failure needs a higher-order "
        "instance of a premise (e.g. the choice axiom `Eps_i_ax` at a specific "
        "predicate), which Vampire finds and `grind` does not.")
-d.para(f"**Time per goal** (one goal at a time, as in use): in v3, proved goals "
+d.para(f"**Time per goal** (one goal at a time, as in use): in v4, proved goals "
        f"take a median of {secs_p[len(secs_p) // 2]:.0f} s, 90% within "
        f"{secs_p[int(len(secs_p) * .9)]:.0f} s; unproved goals are abandoned after a "
-       f"median of {secs_f[len(secs_f) // 2]:.0f} s. The larger Vampire budget is the "
-       "price of v3's gain (v2: 25 s and 85 s).")
+       f"median of {secs_f[len(secs_f) // 2]:.0f} s.")
 
 # ------------------------------------------------------------------ LLM
-d.heading("6. LLM as an untrusted proposer", 1)
+d.heading("6. The LLM loop", 1)
 d.para("The LLM sees the goal, Lean's goal state, the definitions used and the "
        "selected earlier facts, never the original proof or anything after the "
        "goal. Everything it writes goes through the same acceptance checks. "
        "Models are served through an OpenAI-compatible endpoint.")
-d.heading("6.1 Direct Lean with error feedback (v1)", 2)
+d.heading("6.1 First evaluation: direct Lean with error feedback (v1)", 2)
 d.para("Target: the 140 theorems where Vampire found a proof but the v1 battery "
        "could not rebuild it, with the same Vampire premise sets for every "
        "model. Up to 3 rounds, Lean's error returned each round.")
@@ -265,7 +295,7 @@ d.para(f"Cascade on all 140: gpt-oss-120b proved 41, then deepseek-v4-flash 10 "
        f"of the remaining 99: **51 / 140 (36%)**, all re-verified in fresh Lean "
        f"runs. {len(llm & P3)} of these 51 are now proved by v3 without an LLM, "
        "because the strategies distilled from them generalise.")
-d.heading("6.2 Draft, sketch, prove", 2)
+d.heading("6.2 Draft, sketch, prove (v3)", 2)
 d.para("The sketch's \"LLM proving lemma → LLM formalizing proof\" path, in the "
        "style of Draft, Sketch, and Prove (Jiang et al., ICLR 2023):")
 d.numbered([
@@ -320,16 +350,57 @@ if dsp:
 else:
     d.para("[Results of the budgeted run to be added.]")
 
+d.heading("6.3 The fixed LLM loop (v5–v9)", 2)
+d.para("From v5 the LLM loop runs over every theorem the pipeline leaves "
+       "unproved: up to 7 rounds per theorem, each round a Lean check whose "
+       "error goes back to the model. Model: deepseek/deepseek-v4-flash, served "
+       "through the SingularityNET gateway.")
+d.table([
+    ["Version", "What changed", "Proved", "Gain"],
+    ["v4 + earlier", "No LLM", str(len(NOLLM)), "—"],
+    ["v5", "Hidden failures fixed (73% of replies were empty: the model used "
+     "the gateway's 8,192-token reply limit on thinking); free repairs "
+     "(indentation, `eq` bridge, finishing leftover goals); few-shot examples",
+     str(len(NOLLM | L5)), f"+{len(L5)}"],
+    ["v6", "Real feedback: in 49% of failed attempts the model had been shown "
+     "a misleading indentation error; scripts are normalized before checking",
+     str(len(NOLLM | L5 | L6)), f"+{len(L6)}"],
+    ["v7", "96 facts per theorem instead of 24", str(len(NOLLM | L5 | L6 | L7)), f"+{len(L7)}"],
+    ["v8", "160 facts, 7 rounds", str(len(NOLLM | L5 | L6 | L7 | L8)), f"+{len(L8)}"],
+    ["**v9**", "Lemmas shown as Lean prints them; a misapplied lemma is "
+     "answered with its signature", f"**{len(FINAL)}**", f"+{len(L9)}"],
+], widths=[1200, 5300, 1300, 1200])
+d.para("**Missing lemmas, not reasoning.** On the 257 hardest theorems the "
+       "human proofs cite a median of 13 earlier lemmas. Search's top 24 facts "
+       "contained all of them for only 7 theorems; the top 96 for 66 (recall "
+       "0.45 at 24, 0.79 at 96, 0.87 at 160). Raising the facts shown from 24 to "
+       "96 added 77 proofs in one run, many in the first rounds, including "
+       "theorems that hours of decomposition had failed on.")
+d.para("**What did not help.** Showing the model Vampire's whole proof (34 / 51 "
+       "with it, 34 / 51 without, same facts); planning a proof as an outline "
+       "whose steps are proved as separate lemmas (most steps proved, a hard "
+       "core step stayed open: 0 / 3 theorems); embedding-based fact retrieval "
+       "(recall 0.48 at 96 facts against Search's 0.79); and other models on the "
+       "hardest theorems: gpt-oss-120b, gemma-4-31b, minimax-m3, asi1 and "
+       "qwen3.8 proved none of the goals tried, including goals "
+       "deepseek-v4-flash proves.")
+d.para("**Cost and stopping.** The LLM work used about 11,800 calls (162 M "
+       "input and 59 M output tokens). New proofs cost about 26 calls each in "
+       "v7 and about 74 in v9, as the remaining theorems grow harder; Phase 1 "
+       f"stops at {len(FINAL)}, with {999 - len(FINAL)} theorems unproved, mostly "
+       "long surreal-number and integer-arithmetic proofs.")
+
 # ------------------------------------------------------------------ limits
 d.heading("7. Limitations", 1)
 d.bullets([
     "One library (999 theorems) in one foundation; results may not transfer "
     "unchanged to other libraries or to Mathlib-style Lean.",
     "Download is retrieval from this library only; no external sources yet.",
-    "Run-to-run variation on borderline goals (Vampire's time limit): "
-    f"{len(P2 - P3)} v2 successes were not reproduced in v3.",
+    "Run-to-run variation on borderline goals (Vampire's time limit, LLM "
+    f"sampling): for example, {len(P3 - P4)} v3 successes were not reproduced in v4.",
     "Category figures use a vocabulary heuristic.",
-    "LLM results come from a small budget and are estimates.",
+    "The LLM results depend on one model (deepseek-v4-flash) on one gateway, "
+    "whose response time was the main bottleneck.",
     "Speed was not optimised: each Lean check starts a fresh process and "
     "reloads the library, and a batch finishes every candidate even after one "
     "succeeds.",
@@ -338,16 +409,13 @@ d.bullets([
 # ------------------------------------------------------------------ next
 d.heading("8. Next steps", 1)
 d.numbered([
-    f"Phase 1 remainder: the {unproved_vamp} goals with a Vampire proof Lean "
-    "still cannot rebuild, mostly needing higher-order instances: replay "
-    "Vampire's instantiations from its proof, or give them to the LLM as a "
-    "hint; richer induction (generalising the goal, "
-    "strengthening the predicate).",
-    "Speed: a persistent Lean server, stopping at the first success, and "
-    "parallel candidates per goal.",
-    "Phase 2: inference controller (LLM + Hyperon) and the Math Atomspace; "
-    "proved lemmas enter long-term memory, so they are retrieved rather than "
-    "re-proved, and research papers feed long-term memory.",
+    f"Phase 1 is closed at {len(FINAL)} / 999.",
+    "Phase 2: Hyperon drives Lean. A MeTTa inference controller decides each "
+    "proof step (automation, a lemma to apply, an LLM suggestion, a split) and "
+    "Lean checks it; the library and the proved theorems move into a Math "
+    "Atomspace, so lemmas are retrieved from memory rather than re-proved. "
+    "Step-by-step Lean is feasible: through the Lean REPL the library loads in "
+    "0.2 s and each step takes under 0.01 s.",
     "Phase 3: PLN feeding the inference controller.",
 ])
 
@@ -355,8 +423,13 @@ d.numbered([
 d.heading("Appendix: reproducing", 1)
 d.code("cd phase1\n"
        "python3 test_guard.py                                 # leak-guard controls\n"
-       "python3 experiment.py 1 6 ../results/phase1_full_v3.jsonl   # full run\n"
-       "python3 recheck_full.py ../results/phase1_full_v3.jsonl 6 ../results/recheck_v3.jsonl")
+       "python3 experiment.py 1 6 ../results/phase1_full_v4.jsonl   # full run, no LLM\n"
+       "python3 recheck_full.py ../results/phase1_full_v4.jsonl 6 ../results/recheck_v4.jsonl\n"
+       "# LLM loop over every theorem still unproved, then re-verification\n"
+       "PYTHONPATH=. python3 experiments/try_llm_vampire_sweep.py prep-search ../results/rest.jsonl --facts 160\n"
+       "PYTHONPATH=. python3 experiments/try_llm_vampire_sweep.py run ../results/rest.jsonl ../results/out.jsonl noproof \\\n"
+       "    --rounds 7 --workers 4 --examples 3 --model deepseek/deepseek-v4-flash-0731\n"
+       "PYTHONPATH=. python3 experiments/verify_vp_final.py ../results/verified.json ../results/out.jsonl")
 d.para("Repositories: ai-mathematician (this system) and megalodon-lean4 (the "
        "verified Megalodon → Lean 4 translator).")
 

@@ -28,7 +28,7 @@ def execute(binary, source, output, *, extended=False):
     output.mkdir(parents=True, exist_ok=True)
     entry = output / (hashlib.sha256(source.encode()).hexdigest()[:20] + '.metta')
     entry.write_text(source, encoding='utf-8')
-    command = [str(binary), '--no-results', '--lang', 'petta@1.0.6']
+    command = [str(binary), '--no-results', '--lang', 'petta']
     if extended:
         command += ['--profile', 'extended']
     ran = subprocess.run(command + [str(entry)],

@@ -43,7 +43,7 @@ def prelude():
 def execute(binary, source, directory):
     path = directory / (hashlib.sha256(source.encode()).hexdigest()[:20] + ".metta")
     path.write_text(source, encoding="utf-8")
-    result = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)],
+    result = subprocess.run([str(binary), "--lang", "petta", str(path)],
                             cwd=ROOT.parent, text=True, capture_output=True, check=False)
     if result.returncode:
         raise AssertionError(result.stderr or result.stdout[:2000])
@@ -129,7 +129,7 @@ def check_candidates(binary, directory):
 
 def check_units(binary):
     source = ROOT / "tests/metta/ai_mathematician_prover.metta"
-    result = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(source)],
+    result = subprocess.run([str(binary), "--lang", "petta", str(source)],
                             cwd=ROOT.parent, text=True, capture_output=True, check=False)
     count = source.read_text().count("!(test")
     assert result.returncode == 0 and result.stdout.count("✅") == count, result.stdout + result.stderr
@@ -311,7 +311,7 @@ def check_integration(binary, lean, vampire, corpus, directory, oracle):
     checks += 4
 
     # The CLI is an actual Python-free consumer, including foreign CWDs.
-    cli = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6",
+    cli = subprocess.run([str(binary), "--no-results", "--lang", "petta",
                           str(ROOT / "phase1/prover_main.metta"), str(corpus),
                           "orIL", str(vampire), lean], cwd=ROOT.parent,
                          text=True, capture_output=True, check=False)

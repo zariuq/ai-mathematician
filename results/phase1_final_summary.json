@@ -1,0 +1,39 @@
+{
+ "total_proved": 877,
+ "of": 999,
+ "v4_pipeline_reverified": 640,
+ "earlier_experiments": [
+  "BezoutThm",
+  "In_rec_G_ii_f",
+  "In_rec_G_iii_f",
+  "In_rec_i_G_f",
+  "PNoLe_antisym",
+  "Pigeonhole_not_atleastp_ordsucc",
+  "SNoLev_uniq_Subq",
+  "SNoS_Subq",
+  "SNo_exp_SNo_nat",
+  "SNo_sqrtaux_mon",
+  "equip_sym",
+  "exp_SNo_1_bd",
+  "int_diadic_rational_p",
+  "mul_SNo_SNoCut_SNoL_interpolate_impred",
+  "mul_SNo_SNoCut_SNoR_interpolate_impred",
+  "mul_add_nat_distrL",
+  "mul_nat_SL",
+  "mul_nat_Subq_R",
+  "mul_nat_p",
+  "nat_Subq_add_ex",
+  "nat_p_UnivOf_Empty",
+  "omega_SNoS_omega",
+  "prime_nat_2",
+  "proj0E",
+  "recip_SNo_pos_eps_"
+ ],
+ "llm_reverified": {
+  "v5": 77,
+  "v6_v7": 90,
+  "v8_v9": 45
+ },
+ "llm_total": 212,
+ "note": "every LLM proof re-checked from scratch: kernel, statement identity, leak guard"
+}

@@ -23,7 +23,7 @@ def prelude():
 def run_config(binary, config_path, config, *, cwd=ROOT):
     config_path.write_text(json.dumps(config))
     start = time.monotonic_ns()
-    ran = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6",
+    ran = subprocess.run([str(binary), "--no-results", "--lang", "petta",
                           str(ROOT / "phase1/workers_main.metta"), str(config_path)],
                          cwd=cwd, text=True, capture_output=True, check=False)
     elapsed = time.monotonic_ns() - start
@@ -50,7 +50,7 @@ def main():
     worker_counts = [int(value) for value in args.worker_counts.split(",")]
     assert worker_counts and all(value > 0 for value in worker_counts), "positive worker counts required"
     unit = ROOT / "tests/metta/ai_mathematician_workers.metta"
-    checked = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(unit)], cwd=ROOT,
+    checked = subprocess.run([str(binary), "--lang", "petta", str(unit)], cwd=ROOT,
                              text=True, capture_output=True, check=False)
     unit_count = len(re.findall(r"^!\(test\b", unit.read_text(), re.M))
     assert checked.returncode == 0 and checked.stdout.count("✅") == unit_count, checked.stdout + checked.stderr
@@ -86,7 +86,7 @@ def main():
     from check_ai_mathematician_atp import read_values
     path = directory / "pure.metta"
     path.write_text(source)
-    ran = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)], cwd=ROOT,
+    ran = subprocess.run([str(binary), "--lang", "petta", str(path)], cwd=ROOT,
                          text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr or ran.stdout[:3000]
     rows = read_values(ran.stdout)
@@ -119,7 +119,7 @@ def main():
     partition_source = prelude() + "!(" + " ".join(expressions) + ")\n"
     path = directory / "partitions.metta"
     path.write_text(partition_source)
-    ran = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)], cwd=ROOT,
+    ran = subprocess.run([str(binary), "--lang", "petta", str(path)], cwd=ROOT,
                          text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr or ran.stdout[:3000]
     values = read_values(ran.stdout)[-1]
@@ -139,7 +139,7 @@ def main():
       (proc:result (proc:exited 7) proc:normal "" "diagnostic"
         (proc:capture 0 0 10 10 proc:eof proc:eof (proc:input 0 0))))))
 ''')
-    cancelled = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)], cwd=ROOT,
+    cancelled = subprocess.run([str(binary), "--lang", "petta", str(path)], cwd=ROOT,
                                text=True, capture_output=True, check=False)
     assert cancelled.returncode == 0, cancelled.stderr or cancelled.stdout[:3000]
     closed, failed = read_values(cancelled.stdout)[-1]
@@ -193,7 +193,7 @@ def main():
             exprs.append(f"(ai-math:workers-snapshot-valid {metta_rows} {identity_atom} {metta_targets})")
         path = directory / "join-controls.metta"
         path.write_text(prelude() + "!(" + " ".join(exprs) + ")\n")
-        checked = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)], cwd=ROOT,
+        checked = subprocess.run([str(binary), "--lang", "petta", str(path)], cwd=ROOT,
                                  text=True, capture_output=True, check=False)
         assert checked.returncode == 0, checked.stderr or checked.stdout[:3000]
         assert read_values(checked.stdout)[-1] == [c[2] for c in controls], checked.stdout[-3000:]

@@ -17,7 +17,7 @@
        (((AiWorkers:Config $row $app $corpus $output $binary $lean $vampire)
          (case (proc:run
                  ("flock" "--exclusive" "--nonblock" "--conflict-exit-code" "4"
-                   (str:concat $output ".lock") $binary "--no-results" "--lang" "petta@1.0.6"
+                   (str:concat $output ".lock") $binary "--no-results" "--lang" "petta"
                    (str:concat $root "/phase1/workers_driver.metta") (fs:canonical-path $path)) ((lifetime owner)))
            (((proc:result (proc:exited $code) proc:normal $out $err
                (proc:capture $kept $seen $ek $es proc:eof proc:eof (proc:input $sent $size)))

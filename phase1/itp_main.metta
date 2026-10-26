@@ -1,4 +1,4 @@
-; cetta --no-results --lang petta@1.0.6 phase1/itp_main.metta corpus.sexpr goal tactic-file [lean]
+; cetta --no-results --lang petta phase1/itp_main.metta corpus.sexpr goal tactic-file [lean]
 !(import! &self "library.metta")
 !(import! &self proc)
 !(import! &self json)

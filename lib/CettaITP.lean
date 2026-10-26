@@ -1,8 +1,8 @@
 import Lean
 import CettaProofTactics
 
-/- The wire format is JSON. Proposed text is parsed only as a tactic sequence,
-   never spliced into a command. The target type comes from the imported
+/- The wire format is JSON. Helper declarations and the final tactic are
+   parsed separately. The target type comes from the imported
    environment; the final declaration is checked by Lean's kernel. This is
    an acceptance boundary, not an operating-system sandbox for metaprograms. -/
 namespace CettaITP
@@ -97,11 +97,25 @@ def attempt (base : Environment) (request : Json) (target : String) : CommandEla
       ("statement", toJson statement), ("facts", toJson facts), ("definitions", toJson defs)]
   unless operation == "check" || operation == "case" do
     return response target "protocol-fault" "unknown-operation"
+  let prelude ← match request.getObjVal? "prelude" with
+    | .error _ => pure ""
+    | .ok value =>
+      let .ok text := value.getStr?
+        | return response target "protocol-fault" "invalid-prelude"
+      pure text
+  if !prelude.isEmpty then
+    let input := Parser.mkInputContext prelude "<proposed-helpers>"
+    let parsed ← Elab.IO.processCommands input {} (← get)
+    set parsed.commandState
+    unless input.atEnd parsed.parserState.pos do
+      return response target "protocol-fault" "incomplete-prelude"
+    if (← get).messages.hasErrors then
+      return response target "rejected" "helper-errors"
   let .ok tactic := textField request "tactic"
     | return response target "protocol-fault" "missing-tactic"
   let source := "by\n" ++ String.intercalate "\n"
     (tactic.splitOn "\n" |>.map ("  " ++ ·))
-  let proofSyntax ← match Parser.runParserCategory base `term source "<proposed-tactic>" with
+  let proofSyntax ← match Parser.runParserCategory (← getEnv) `term source "<proposed-tactic>" with
     | .ok stx => pure stx
     | .error message => throwError "tactic syntax: {message}"
   let attemptName := if operation == "case" then `CettaITP.checkedCase else `CettaITP.checkedAttempt
@@ -199,7 +213,8 @@ def executeBatch (env : Environment) (options : Options) (request : Json)
       | return response target "protocol-fault" "invalid-candidate-tactic"
     let isCase := (textField request "operation").toOption == some "case-batch"
     let single := Json.mkObj <| [
-      ("operation", toJson (if isCase then "case" else "check")), ("tactic", toJson tactic)] ++
+      ("operation", toJson (if isCase then "case" else "check")), ("tactic", toJson tactic),
+      ("prelude", request.getObjVal? "prelude" |>.toOption |>.getD (toJson ""))] ++
       if isCase then [("prefix", request.getObjVal? "prefix" |>.toOption |>.getD Json.null),
                       ("case", candidate.getObjVal? "case" |>.toOption |>.getD Json.null)] else []
     let result ← executeIn env options single target

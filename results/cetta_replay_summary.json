@@ -1,0 +1,24 @@
+{
+  "schema": "ai-math.replay.qualification.v1",
+  "status": "passed",
+  "checked": 875,
+  "duper": 50,
+  "helpers": 7,
+  "workers": 2,
+  "elapsed_seconds": 785.208,
+  "upstream": {
+    "repository": "https://github.com/yenat/ai-mathematician",
+    "revision": "5d124b4d649a6d133b5fa4ad3e4788f639f1a337",
+    "bundle": "results/proof_bundle.jsonl"
+  },
+  "engine": {
+    "base_revision": "ed1d8fa38bb0403c1063f71441ded408c608245a",
+    "staged_patch_sha256": "6ddc106241da54e379073a95be1170fe0f0368ba5b9b87e52f41cf2f45533704",
+    "configuration": "core, HTTP and GMP; no Python or Prolog runtime"
+  },
+  "input_receipt": "cetta_replay_inputs.json",
+  "input_receipt_sha256": "0ecf362a012d426a0182b8813f7ac4a4738e452a4b7da4d6dd7a826f368908a5",
+  "records": "cetta_replay.jsonl",
+  "scope": "Supplied exact-script replay through MeTTa and the independent Lean guard; not a new proof-discovery run.",
+  "records_sha256": "87c4abb57d3a195d77bcd2f7cbfee38137f55e8ebdf8527f20a23f3b22f0dc4a"
+}

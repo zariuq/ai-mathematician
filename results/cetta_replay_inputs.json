@@ -1,0 +1,25 @@
+{
+  "schema": "ai-math.replay.receipt.v1",
+  "witnesses": "e1b1b2ed79bffbb02e749693a9b0e356d7d2638d6bc12e1e07a863b068fe9dc4",
+  "corpus": "2faadf2eb53d9b746e93f8ca89921fbba89b51f66c4ffc7471c6dd2c6e2484d6",
+  "artifacts": {
+    "cetta": "f11e8311279f25b67189f8d1ab04b98d466f770a07761ba740bbb80258fb50f7",
+    "lean": "e8baaa71855a616dc351028f3ad2200051b0671f423a1696a100e809302d5550",
+    "itp-guard": "b4c678a92d989d73e75a46278c9bf0d0bf1d0bb2f59b06f803aed1fb908498df",
+    "itp-worker": "ef765222bad3d2b330ed3a39000c2e5015ef8782fe42625cdcd3bebb1949bc8e",
+    "lib/MegLib.olean": "deeebb80691fec44b4e36f05b3395b82787368516358bf0a05aff1108594ef9f",
+    "lib/Bridge.olean": "be5c79a65d6a9dbf714e52bb9a5c2d36861e64a962c3f1c1f04fb356f7e6ccd1",
+    "lib/CettaProofTactics.olean": "a988826f0cd89c406af842640b1ab45c1ab6f01b4fdf391f75891c155406113c",
+    "lib/CettaITP.olean": "95c11c196b68d4953cc1b47027074665850166412430e5f01ef7d324cce0f8ea",
+    "lib/CettaProposalView.olean": "013b7ddd81687dec6ca6d1afbeb0d16a567bb76773a04aa7e4bd3651985220a9",
+    "lib/CettaITPGuard.olean": "f1bc55dbe74ce8d3ae9856a8ac8fd8002cf4e5156165fb7b131d067f3a55adc1"
+  },
+  "lean": "Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)",
+  "duper_manifest": "dd8e724d1176186cb13d93e077a0dd48a60e72d3135dfa56c6c62c4c1b1cf4d5",
+  "runtime": {
+    "library.metta": "31aac757918f8b1f98c4c43224e3dacdca05fe139a50981bc57086e92bd0d6cb",
+    "itp.metta": "a0acf0af42102d111b7166e1850fe1f4f5ce136400ecd2b1814213db659e3e38",
+    "replay.metta": "35b93020a49d3afd180952f5961c6670e842002c085ce66e267e041acdaa8499",
+    "replay_main.metta": "3b4c4cd4547e1c2accbd0aac1da8a52dbe718ec493b6f69dfb01343a106145eb"
+  }
+}

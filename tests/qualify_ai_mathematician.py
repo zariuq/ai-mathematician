@@ -156,7 +156,9 @@ def main():
     app('signature_feedback', [*corpus, *lean])
     app('embeddings')
     app('upstream')
-    app('published', [*corpus, *lean])
+    app('replay', [*corpus, *lean])
+    app('published', [*corpus, *lean, '--input', str(ROOT / 'results/proof_bundle.jsonl'),
+                      '--workers', '2', '--output', str(args.output / 'published'), '--resume'])
     app('discovery', [*corpus, *lean])
     app('research', [*corpus, *lean, *solver, '--zipper', args.zipper, '--require-integrations'])
     gate('engine-basic', ['make', *BUILD, 'test'], args.engine_source, False)
@@ -178,7 +180,8 @@ def main():
                       oracle=frozen['oracle'], command=command)
         if name == 'published':
             inputs['published'] = {filename: digest(ROOT / 'results' / filename) for filename in
-                                   ('llm_proofs_verified.json', 'v6v7_verified.json', 'v8v9_verified.json')}
+                                   ('llm_proofs_verified.json', 'v6v7_verified.json', 'v8v9_verified.json',
+                                    'proof_bundle.jsonl')}
         return inputs
     def identity(value):
         return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()

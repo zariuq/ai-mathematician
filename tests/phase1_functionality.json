@@ -1,7 +1,7 @@
 {
   "schema": "ai-math.phase1-functionality.v1",
-  "scope": "The Phase 1 system and experimental algorithms at the pinned v9 reference, exposed through reusable native MeTTa operations and shared configurable runners; historical one-off CLI and report-publishing scripts are not duplicated.",
-  "python_revision": "f095266996dae3a658fb3ac63b2ffe414a9b9aa3",
+  "scope": "The Phase 1 system, experimental algorithms and exact-script replay at the pinned upstream reference, exposed through reusable native MeTTa operations and shared configurable runners; historical one-off discovery/recovery recipes and report-publishing scripts are not duplicated.",
+  "python_revision": "5d124b4d649a6d133b5fa4ad3e4788f639f1a337",
   "semantics": {
     "strict": [
       "declaration identities",
@@ -125,14 +125,18 @@
         "itp.py": [
           "load_statements",
           "check",
-          "leak_free"
+          "leak_free",
+          "library_axioms",
+          "guard_verdict"
         ]
       },
       "native": {
         "phase1/itp.metta": [
           "ai-math:itp-load-statements",
           "ai-math:itp-check-with",
-          "ai-math:itp-checked"
+          "ai-math:itp-checked",
+          "ai-math:itp-axiom",
+          "ai-math:itp-response"
         ]
       },
       "gates": [
@@ -422,14 +426,19 @@
     },
     {
       "id": "published-witness-rechecking",
-      "python": {},
+      "python": {
+        "replay.py": ["check"]
+      },
       "native": {
         "phase1/itp.metta": [
-          "ai-math:itp-check-with"
-        ]
+          "ai-math:itp-check-with",
+          "ai-math:itp-check-program-with"
+        ],
+        "phase1/replay.metta": ["ai-math:replay-prepare", "ai-math:replay-run"]
       },
       "gates": [
         "published",
+        "replay",
         "isolation"
       ]
     },
@@ -725,9 +734,12 @@
     "broader tensor/collection interoperability"
   ],
   "impact": {
+    "phase1/replay.metta": ["replay", "published"],
+    "phase1/replay_main.metta": ["replay", "published"],
     "phase1/itp.metta": [
       "itp",
-      "research"
+      "research",
+      "replay"
     ],
     "phase1/experiment.metta": [
       "experiment",

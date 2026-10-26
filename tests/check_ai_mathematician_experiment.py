@@ -21,7 +21,7 @@ def prelude():
 def execute(binary, source, directory):
     path = directory / (hashlib.sha256(source.encode()).hexdigest()[:20] + ".metta")
     path.write_text(source)
-    ran = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)],
+    ran = subprocess.run([str(binary), "--lang", "petta", str(path)],
                          cwd=ROOT, text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr or ran.stdout[:2000]
     values = read_values(ran.stdout)
@@ -36,7 +36,7 @@ def check_cli_boundary(binary, corpus, vampire, lean, directory):
     stride = 1_000_000
     shard = stride - 1
     ran = subprocess.run([
-        str(binary), "--lang", "petta@1.0.6",
+        str(binary), "--lang", "petta",
         str(ROOT / "phase1/experiment_main.metta"),
         str(corpus), str(log), str(stride), "Fresh", str(vampire), str(lean),
         str(shard), "PythonV4", str(trace),
@@ -53,7 +53,7 @@ def check_cli_boundary(binary, corpus, vampire, lean, directory):
                for path, checksum in artifacts.items()), artifacts
     invalid_log = directory / "invalid shard must not create a log.jsonl"
     rejected = subprocess.run([
-        str(binary), "--lang", "petta@1.0.6",
+        str(binary), "--lang", "petta",
         str(ROOT / "phase1/experiment_main.metta"),
         str(corpus), str(invalid_log), "2", "Fresh", str(vampire), str(lean),
         "2", "PythonV4", str(trace),

@@ -31,7 +31,7 @@ def prelude():
 
 
 def execute(binary, source):
-    ran = subprocess.run([str(binary), '--lang', 'petta@1.0.6', '-e', source],
+    ran = subprocess.run([str(binary), '--lang', 'petta', '-e', source],
                          cwd=ROOT, text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr or ran.stdout[:2000]
     values = read_values(ran.stdout)
@@ -598,7 +598,7 @@ def runner_controls(binary, args):
     def run(config, code=0):
         path = output / 'config.json'
         path.write_text(json.dumps(config) + '\n')
-        ran = subprocess.run([str(binary), '--no-results', '--lang', 'petta@1.0.6',
+        ran = subprocess.run([str(binary), '--no-results', '--lang', 'petta',
                               str(entry), str(path)], cwd=ROOT, text=True, capture_output=True)
         assert ran.returncode == code, (ran.returncode, ran.stdout[:3000], ran.stderr[:2000])
         assert 'AiResearch:Fault no-single-result' not in ran.stdout, ran.stdout

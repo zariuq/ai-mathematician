@@ -12,6 +12,10 @@ data/corpus.sexpr
 # run outputs
 results/*.jsonl
 !results/recheck_v4.jsonl
+!results/proof_bundle.jsonl
+!results/replay.jsonl
+!results/replay_previous_library.jsonl
+!results/cetta_replay.jsonl
 results/*.log
 __pycache__/
 *.pyc
@@ -40,3 +44,4 @@ results/*ledger*.jsonl
 results/emb_*.json
 results/lean_sigs.json
 tools/repl/
+phase2/data/

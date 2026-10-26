@@ -22,15 +22,15 @@ so installing Duper cannot silently reuse earlier core-only search results.
 
 Individual components are also available directly:
 
-  cetta --lang petta@1.0.6 phase1/library_main.metta data/corpus.sexpr
-  cetta --lang petta@1.0.6 phase1/search_main.metta data/corpus.sexpr
-  cetta --lang petta@1.0.6 phase1/atp_main.metta data/corpus.sexpr andI .cetta/tools/vampire-5.1.0-linux-x64/vampire
+  cetta --lang petta phase1/library_main.metta data/corpus.sexpr
+  cetta --lang petta phase1/search_main.metta data/corpus.sexpr
+  cetta --lang petta phase1/atp_main.metta data/corpus.sexpr andI .cetta/tools/vampire-5.1.0-linux-x64/vampire
 
 Build the checked Lean library and the fixed proof runner once:
 
   make prepare-cetta-itp
-  cetta --no-results --lang petta@1.0.6 phase1/itp_main.metta data/corpus.sexpr orIL proof.tactic
-  cetta --no-results --lang petta@1.0.6 phase1/prover_main.metta data/corpus.sexpr orIL .cetta/tools/vampire-5.1.0-linux-x64/vampire
+  cetta --no-results --lang petta phase1/itp_main.metta data/corpus.sexpr orIL proof.tactic
+  cetta --no-results --lang petta phase1/prover_main.metta data/corpus.sexpr orIL .cetta/tools/vampire-5.1.0-linux-x64/vampire
 
 proof.tactic contains tactics only, for example:
 
@@ -50,6 +50,43 @@ in the existing project setup. The executable and corpus need not live in
 this repository: pass their paths, or set VAMPIRE_BIN for the ATP driver.
 Input paths are relative to the caller's working directory. The entry file
 may also be invoked by its full path from another working directory.
+
+Exact-script replay
+-------------------
+
+The upstream checkpoint 5d124b4d649a6d133b5fa4ad3e4788f639f1a337 supplies
+875 exact scripts in results/proof_bundle.jsonl. All 875 passed the native
+MeTTa replay and independent Lean guard, including 50 Duper scripts and
+seven scripts with helper declarations. The per-goal observations and tool
+identities are in results/cetta_replay.jsonl and
+results/cetta_replay_summary.json. Recheck them without
+Vampire or model requests:
+
+  make replay-cetta CETTA=cetta CORPUS=data/corpus.sexpr
+
+This runs phase1/replay_main.metta. It validates the whole bundle before
+checking any script, preserves helper declarations and the per-row Duper
+setting, and emits JSONL results with independently checked dependencies and
+axioms. Core scripts use 300 seconds/200,000 heartbeats; Duper scripts use
+600 seconds/1,000,000 heartbeats, matching upstream replay. The process exits
+nonzero and stops at the first failed, unfinished or malformed check.
+
+For parallel qualification with incremental receipts:
+
+  python3 tests/check_ai_mathematician_published.py --cetta cetta \
+    --corpus data/corpus.sexpr --lean lean --input results/proof_bundle.jsonl \
+    --workers 2 --output .cetta/bundle-replay
+
+Add --resume to reuse completed qualification records with identical
+witnesses, compiled checkers and runtime inputs. Interrupted final records
+are not reused. These receipts are test evidence, never proof-store input.
+The native replay itself needs neither Python nor Prolog; Python only
+coordinates this optional qualification run.
+
+The bundle covers 875 distinct goals, not all 877 historical discoveries:
+upstream reports that two older scripts were not retained. Replay verifies
+the supplied witnesses; it does not rediscover proofs or measure discovery
+recall. Duper scripts still execute their recorded Lean tactics.
 
 Dependencies
 ------------
@@ -165,7 +202,7 @@ Prepare the fixed Lean tools once, then start the application:
 
 The same entry point can be called without Make:
 
-  cetta --no-results --lang petta@1.0.6 phase1/workers_main.metta cetta-run.json
+  cetta --no-results --lang petta phase1/workers_main.metta cetta-run.json
 
 Paths in this JSON configuration are relative to the configuration file,
 not the caller's directory. A bare lean/vampire executable name uses PATH;
@@ -269,6 +306,7 @@ Reusable application operations
   (ai-math:itp declarations application-root lean-executable)
   (ai-math:itp-check itp-context goal-name tactic-text)
   (ai-math:itp-check-with itp-context goal-name tactic-text (AiITP:Budget milliseconds heartbeats recursion))
+  (ai-math:itp-check-program-with itp-context goal-name helper-declarations tactic-text budget)
   (ai-math:itp-statement itp-context goal-name)
   (ai-math:itp-load-statements itp-context)
   (ai-math:itp-signature statements goal-name)
@@ -341,8 +379,11 @@ Lean acceptance
 The existing JSON library transports requests to a fixed Lean guard via
 stdin. No temporary Lean source is generated. The POSIX env utility sets
 LEAN_PATH without discarding the inherited process environment. Lean parses
-the proposal only as the body of a by term, with complete-input checking.
-The expected type is the original theorem's actual imported expression.
+the final tactic as the body of a by term, with complete-input checking.
+Stored scripts may separately supply helper declarations through
+itp-check-program-with. Lean parses those as commands in a fresh proposal
+environment; they do not alter the trusted imports or later requests.
+The expected type is captured from the original theorem before any helpers.
 The tactic worker writes its resulting declarations into a temporary Lean
 module. In a separate process, the guard reads that module as data, replays
 every new declaration through Lean's kernel against fixed imports, checks the
@@ -485,7 +526,7 @@ as mathematical impossibility.
 Corpus preparation without Python
 ---------------------------------
 
-  cetta --no-results --lang petta@1.0.6 phase1/lean_export_main.metta data/corpus.sexpr lib/MegLib.lean
+  cetta --no-results --lang petta phase1/lean_export_main.metta data/corpus.sexpr lib/MegLib.lean
   make prepare-cetta-itp
 
 Every theorem is emitted with its original proof term. Only declared source
@@ -499,7 +540,7 @@ For the authoritative All.lean plus five standalone dependency-closed
 category views, create an output directory and pass --views:
 
   mkdir -p .cetta/generated
-  cetta --no-results --lang petta@1.0.6 phase1/lean_export_main.metta data/corpus.sexpr .cetta/generated --views
+  cetta --no-results --lang petta phase1/lean_export_main.metta data/corpus.sexpr .cetta/generated --views
 
 Categories reproduce the original vocabulary heuristic. They are browsing
 views, not disjoint mathematical theories. Original declaration order and
@@ -508,8 +549,8 @@ all named dependencies are retained.
 Experiments and resume
 ----------------------
 
-  cetta --no-results --lang petta@1.0.6 phase1/experiment_main.metta data/corpus.sexpr results/cetta.jsonl 33 Fresh vampire lean 0 PythonV4 -
-  cetta --no-results --lang petta@1.0.6 phase1/experiment_main.metta data/corpus.sexpr results/cetta.jsonl 33 Resume vampire lean 0 PythonV4 -
+  cetta --no-results --lang petta phase1/experiment_main.metta data/corpus.sexpr results/cetta.jsonl 33 Fresh vampire lean 0 PythonV4 -
+  cetta --no-results --lang petta phase1/experiment_main.metta data/corpus.sexpr results/cetta.jsonl 33 Resume vampire lean 0 PythonV4 -
 
 Stride 1 selects all theorem goals. Optional trailing arguments select the
 Vampire and Lean executables, a shard in [0,stride), and the discovery
@@ -564,7 +605,7 @@ scripts of earlier theorems, as described below.
 
 For a JSONL baseline, invoke:
 
-  cetta --no-results --lang petta@1.0.6 phase1/llm_experiment_main.metta run-config.json
+  cetta --no-results --lang petta phase1/llm_experiment_main.metta run-config.json
 
 A minimal configuration is:
 
@@ -769,7 +810,7 @@ Native research workflows
 Copy cetta-research.example.json, choose explicit goals and an output path,
 then run:
 
-  cetta --no-results --lang petta@1.0.6 phase1/research_main.metta research.json
+  cetta --no-results --lang petta phase1/research_main.metta research.json
 
 Proof-producing modes are prop, incremental, decompose, hybrid, chain,
 duper2 and zipper. All final candidates pass the independent original-target

@@ -19,7 +19,7 @@ INDUCTION_SHA256 = "ebc023b7a072110a6b4f0ca49faccf09acac5dbd1c6612f378116f483e7d
 def execute(binary, code, output):
     source = output / (hashlib.sha256(code.encode()).hexdigest()[:20] + ".metta")
     source.write_text(code, encoding="utf-8")
-    result = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6", str(source)],
+    result = subprocess.run([str(binary), "--no-results", "--lang", "petta", str(source)],
                             cwd=ROOT, text=True, capture_output=True, check=False)
     assert result.returncode == 0, result.stderr or result.stdout[:2000]
     values = read_values(result.stdout)

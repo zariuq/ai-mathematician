@@ -43,7 +43,7 @@ def ownership(binary, output, timeout, startup_runs):
         source = f'''!(import! &self proc)
 !(let $job (proc:spawn {argv} ((lifetime owner))) (proc:await $job))
 '''
-        caller = subprocess.Popen([str(binary), '--no-results', '--lang', 'petta@1.0.6', '-e', source],
+        caller = subprocess.Popen([str(binary), '--no-results', '--lang', 'petta', '-e', source],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             if index < 2:

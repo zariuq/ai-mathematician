@@ -161,7 +161,7 @@ def main():
 '''
     script=output/'retrieval.metta'; script.write_text(source)
     begin=time.perf_counter_ns()
-    result=subprocess.run([str(binary),'--lang','petta@1.0.6',str(script)],cwd=ROOT,text=True,capture_output=True,timeout=300)
+    result=subprocess.run([str(binary),'--lang','petta',str(script)],cwd=ROOT,text=True,capture_output=True,timeout=300)
     whole_ns=time.perf_counter_ns()-begin
     (output/'retrieval.stdout').write_text(result.stdout); (output/'retrieval.stderr').write_text(result.stderr)
     assert result.returncode==0,(result.stdout[-1000:],result.stderr)

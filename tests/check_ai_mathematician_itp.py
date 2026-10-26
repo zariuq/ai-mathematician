@@ -29,7 +29,7 @@ def prelude():
 def execute(binary, source, directory):
     path = directory / (hashlib.sha256(source.encode()).hexdigest()[:20] + ".metta")
     path.write_text(source, encoding="utf-8")
-    result = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)],
+    result = subprocess.run([str(binary), "--lang", "petta", str(path)],
                             cwd=ROOT.parent, text=True, capture_output=True, check=False)
     if result.returncode:
         raise AssertionError(result.stderr or result.stdout[:2000])
@@ -66,7 +66,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     unit_path = ROOT / "tests/metta/ai_mathematician_itp.metta"
     unit_count = len(re.findall(r"^!\(test\b", unit_path.read_text(), re.M))
-    unit = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(unit_path)],
+    unit = subprocess.run([str(binary), "--lang", "petta", str(unit_path)],
                           cwd=ROOT, text=True, capture_output=True, check=False)
     assert unit.returncode == 0 and unit.stdout.count("✅") == unit_count, unit.stdout + unit.stderr
     assert "❌" not in unit.stdout + unit.stderr
@@ -174,6 +174,44 @@ def main():
     ], guard_reasons
     checks += 2
 
+    # Published witnesses can include helper declarations before the final
+    # tactic. They are candidates, not additions to the trusted library.
+    helper_type = "forall P Q : Prop, P -> or P Q"
+    helper = f"theorem replayHelper : {helper_type} := by\n" + "\n".join(
+        "  " + line for line in genuine.splitlines())
+    helper_cases = [
+        ("helper-proof", helper, "exact replayHelper", "AiITP:Accepted"),
+        ("helper-chain", helper + f"\ntheorem replayAlias : {helper_type} := replayHelper",
+         "exact replayAlias", "AiITP:Accepted"),
+        ("helper-self", f"theorem replayHelper : {helper_type} := orIL",
+         "exact replayHelper", "AiITP:Rejected"),
+        ("helper-false", f"theorem replayHelper : {helper_type} := _root_.True.intro",
+         "exact replayHelper", "AiITP:Rejected"),
+        ("helper-axiom", f"axiom replayHelper : {helper_type}",
+         "exact replayHelper", "AiITP:Rejected"),
+        ("helper-unrelated-axiom", "axiom untrustedUnused : False",
+         genuine, "AiITP:Fault"),
+        ("helper-malformed", "theorem replayHelper :", genuine, "AiITP:Rejected"),
+        ("helper-trailing-input", helper + "\n#exit\nthis is not a declaration",
+         "exact replayHelper", "AiITP:Fault"),
+        ("helper-isolation", "", "exact replayHelper", "AiITP:Rejected"),
+    ]
+    requests = " ".join(f'({quote(label)} {quote(helpers)} {quote(tactic)})'
+                        for label, helpers, tactic, _ in helper_cases)
+    rows_with_helpers = execute(binary, prelude() + "!" + setup + f"""
+      (map-atom ({requests}) $case
+        (let ($label $helpers $tactic) $case
+          ($label (ai-math:itp-check-program-with $context "orIL" $helpers $tactic
+            (AiITP:Budget 10000 1000000 1000))))))
+""", output)
+    assert len(rows_with_helpers) == len(helper_cases), rows_with_helpers
+    for (label, result), (expected_label, _, _, kind) in zip(rows_with_helpers, helper_cases):
+        assert label == expected_label and result[:2] == [kind, "orIL"], (label, result, kind)
+        if kind == "AiITP:Accepted":
+            ok, forbidden = oracle.leak_free(result[2], index_of["orIL"], index_of)
+            assert ok and "sorryAx" not in result[3], (label, forbidden, result)
+        checks += 1
+
     source = prelude() + "!" + setup + """
       (let (AiITP:Statements $signatures) (ai-math:itp-load-statements $context)
         (ITPStatements
@@ -225,7 +263,7 @@ def main():
     # The CLI resolves its own application root even from another directory.
     tactic_file = output / "orIL.tactic"
     tactic_file.write_text(genuine, encoding="utf-8")
-    result = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6",
+    result = subprocess.run([str(binary), "--no-results", "--lang", "petta",
                              str(ROOT / "phase1/itp_main.metta"), str(corpus),
                              "orIL", str(tactic_file), lean], cwd=ROOT.parent,
                             text=True, capture_output=True, check=False)
@@ -233,7 +271,7 @@ def main():
     assert read_values(result.stdout) == [rows[0][1]], result.stdout
     checks += 1
     tactic_file.write_text("exact orIL", encoding="utf-8")
-    rejected = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6",
+    rejected = subprocess.run([str(binary), "--no-results", "--lang", "petta",
                                str(ROOT / "phase1/itp_main.metta"), str(corpus),
                                "orIL", str(tactic_file), lean], cwd=ROOT.parent,
                               text=True, capture_output=True, check=False)

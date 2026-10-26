@@ -29,7 +29,7 @@ def prelude():
 def execute(binary, source, output):
     path = output / (hashlib.sha256(source.encode()).hexdigest()[:20] + ".metta")
     path.write_text(source)
-    ran = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)],
+    ran = subprocess.run([str(binary), "--lang", "petta", str(path)],
                          cwd=ROOT, text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr or ran.stdout[:2000]
     values = read_values(ran.stdout)
@@ -40,7 +40,7 @@ def execute(binary, source, output):
 
 def ledger(binary, path, request):
     ran = subprocess.run(["flock", "--exclusive", str(path) + ".lock", str(binary),
-                          "--no-results", "--lang", "petta@1.0.6",
+                          "--no-results", "--lang", "petta",
                           str(ROOT / "phase1/llm_ledger_main.metta"), str(path)],
                          cwd=ROOT, input=json.dumps(request), text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr
@@ -355,7 +355,7 @@ def main():
             (output / 'examples.json').write_text(json.dumps({'orIL': 'intro P Q hp r f g\nexact f hp'}))
             config_path = output / "configuration.json"
             config_path.write_text(json.dumps(config))
-            entry = [str(http_binary), "--no-results", "--lang", "petta@1.0.6",
+            entry = [str(http_binary), "--no-results", "--lang", "petta",
                      str(ROOT / "phase1/llm_experiment_main.metta"), str(config_path)]
             blocked = subprocess.run(entry, cwd=ROOT, text=True, capture_output=True, check=False,
                                      env=dict(os.environ, LLM_API_KEY='', LLM_BASE_URL=''))

@@ -96,7 +96,7 @@ def execute(binary, program, output):
     output.mkdir(parents=True, exist_ok=True)
     source = output / f"atp-{hashlib.sha256(program.encode()).hexdigest()[:16]}.metta"
     source.write_text(program, encoding="utf-8")
-    result = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(source.resolve())],
+    result = subprocess.run([str(binary), "--lang", "petta", str(source.resolve())],
                             cwd=ROOT, text=True, capture_output=True, check=False)
     if result.returncode:
         raise AssertionError(result.stderr or result.stdout[:1500])
@@ -286,7 +286,7 @@ def main():
     fixture = ROOT / "tests/fixtures/ai_mathematician_atp.sexpr"
     controls_source = ROOT / "tests/metta/ai_mathematician_atp.metta"
     expected_controls = len(re.findall(r"^!\(test\b", controls_source.read_text(), re.M))
-    controls = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(controls_source)], cwd=ROOT,
+    controls = subprocess.run([str(binary), "--lang", "petta", str(controls_source)], cwd=ROOT,
                               text=True, capture_output=True, check=False)
     assert controls.returncode == 0 and controls.stdout.count("✅") == expected_controls and "❌" not in controls.stdout, controls.stderr or controls.stdout
     checks = expected_controls
@@ -324,20 +324,20 @@ def main():
     assert result[8] == ["AiATP:Advice", "Theorem", [], []], result[8]
     checks += 10
     driver = ROOT / "phase1/atp_main.metta"
-    cli = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(driver),
+    cli = subprocess.run([str(binary), "--lang", "petta", str(driver),
                           str(fixture), "q_goal", str(vampire)], cwd=ROOT.parent.parent,
                          text=True, capture_output=True, check=False)
     assert cli.returncode == 0 and "AiATP:Advice" in cli.stdout and '"Theorem"' in cli.stdout, cli.stderr or cli.stdout
     checks += 1
-    usage = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(driver)],
+    usage = subprocess.run([str(binary), "--lang", "petta", str(driver)],
                            cwd=ROOT.parent, text=True, capture_output=True, check=False)
     assert usage.returncode == 2 and "usage:" in usage.stdout, usage.stderr or usage.stdout
-    missing = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(driver),
+    missing = subprocess.run([str(binary), "--lang", "petta", str(driver),
                               str(fixture) + ".missing", "q_goal", str(vampire)],
                              cwd=ROOT.parent, text=True, capture_output=True, check=False)
     assert missing.returncode != 0 and "cannot open file" in missing.stdout + missing.stderr
     assert "AiATP:Advice" not in missing.stdout, missing.stdout
-    unknown = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(driver),
+    unknown = subprocess.run([str(binary), "--lang", "petta", str(driver),
                               str(fixture), "unknown_goal", str(vampire)],
                              cwd=ROOT.parent, text=True, capture_output=True, check=False)
     assert unknown.returncode == 0 and "AiTHF:InterpretationRequest theorem-name" in unknown.stdout

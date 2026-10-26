@@ -4,7 +4,7 @@ Run: 2026-09-24/25. Builds on `phase1_baseline_v1.md` (418/999, no LLM).
 
 ## Setting
 
-The LLM is an untrusted proposer inside a feedback loop: it writes a Lean
+The LLM is a proposer inside a feedback loop: it writes a Lean
 tactic script, Lean checks it, and on failure the model sees Lean's actual
 error and tries again (up to 3 rounds). It is shown only the goal, Lean's
 goal state after `intros`, the definitions the goal uses, and premises

@@ -130,6 +130,13 @@
      (ai-math:itp-request $context $target "check" $tactic $budget)
      (AiITP:Fault $target invalid-budget $budget)))
 
+(= (ai-math:itp-check-program-with $context $target $helpers $tactic $budget)
+   (if (and (== (get-type $helpers) String) (== (get-type $tactic) String))
+     (if (ai-math:itp-budget-valid $budget)
+       (ai-math:itp-request $context $target "check" $tactic $budget $helpers)
+       (AiITP:Fault $target invalid-budget $budget))
+     (AiITP:Fault $target invalid-proof-program ($helpers $tactic))))
+
 (= (ai-math:itp-statement $context $target)
    (ai-math:itp-request $context $target "statement" "" (AiITP:Budget 0 0 0)))
 
@@ -180,6 +187,8 @@
           $lean (str:concat $root "/phase1/itp_driver.lean")))))))
 
 (= (ai-math:itp-request $context $target $operation $tactic $budget)
+   (ai-math:itp-request $context $target $operation $tactic $budget ""))
+(= (ai-math:itp-request $context $target $operation $tactic $budget $helpers)
    (case $context
      (((AiITP $index $root $lean $profile)
        (case (ai-math:get $index $target AiMissing)
@@ -188,13 +197,14 @@
              (((AiITP:Budget $milliseconds $heartbeats $recursion)
                (let $input (json:stringify
                  (JsonObject
-                   ((JsonPair "schema" "ai-math.itp.v1")
+                   (union-atom ((JsonPair "schema" "ai-math.itp.v1")
                     (JsonPair "target" $target)
                     (JsonPair "operation" $operation)
                     (JsonPair "profile" (ai-math:itp-profile-name $context))
                     (JsonPair "tactic" $tactic)
                     (JsonPair "heartbeats" $heartbeats)
-                    (JsonPair "recursion" $recursion))))
+                    (JsonPair "recursion" $recursion))
+                    (if (== $helpers "") () ((JsonPair "prelude" $helpers))))))
                  (ai-math:itp-send $context $target $i $operation $input $milliseconds)))
               ($other (AiITP:Fault $target invalid-budget $budget)))))
           ($other (AiITP:Rejected $target unknown-theorem $other)))))

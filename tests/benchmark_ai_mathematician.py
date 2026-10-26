@@ -153,7 +153,7 @@ def measure(binary, source, output, stem):
     script.write_text(source, encoding="utf-8")
     started = time.perf_counter_ns()
     with (output / f"{stem}.out").open("w") as stdout, (output / f"{stem}.err").open("w") as stderr:
-        child = subprocess.Popen([str(binary), "--lang", "petta@1.0.6", str(script)],
+        child = subprocess.Popen([str(binary), "--lang", "petta", str(script)],
                                  cwd=ROOT, stdout=stdout, stderr=stderr)
         _, status, usage = os.wait4(child.pid, 0)
         child.returncode = os.waitstatus_to_exitcode(status)

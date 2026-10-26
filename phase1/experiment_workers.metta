@@ -207,7 +207,7 @@
                     (str:concat "CETTA_ITP_RUNTIME="
                       (ai-math:workers-value $row "itp_runtime"
                         (system:getenv-or-default "CETTA_ITP_RUNTIME" "interpreted")))
-                    $binary "--no-results" "--lang" "petta@1.0.6"
+                    $binary "--no-results" "--lang" "petta"
                     (str:concat $root "/phase1/experiment_worker_main.metta"))
          ((lifetime owner) (stdin (json:stringify (ai-math:workers-request $config $identity $job)))
           (timeout-ms (ai-math:workers-value $row "worker_timeout_ms" 0)))))))

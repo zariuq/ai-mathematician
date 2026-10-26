@@ -1,4 +1,4 @@
-; cetta --no-results --lang petta@1.0.6 phase1/prover_main.metta corpus.sexpr goal [vampire] [lean]
+; cetta --no-results --lang petta phase1/prover_main.metta corpus.sexpr goal [vampire] [lean]
 !(import! &self proc)
 !(import! &self "library.metta")
 !(import! &self (library list))

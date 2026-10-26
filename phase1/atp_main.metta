@@ -1,4 +1,4 @@
-; cetta --lang petta@1.0.6 phase1/atp_main.metta corpus.sexpr goal-name [vampire]
+; cetta --lang petta phase1/atp_main.metta corpus.sexpr goal-name [vampire]
 !(import! &self proc)
 !(import! &self "library.metta")
 !(import! &self (library list))

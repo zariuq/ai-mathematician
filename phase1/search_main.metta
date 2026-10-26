@@ -1,4 +1,4 @@
-; cetta --lang petta@1.0.6 phase1/search_main.metta corpus.sexpr
+; cetta --lang petta phase1/search_main.metta corpus.sexpr
 !(import! &self "library.metta")
 !(import! &self (library list))
 !(import! &self "search.metta")

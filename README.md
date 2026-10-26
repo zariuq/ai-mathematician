@@ -9,7 +9,7 @@ Built phase by phase:
 | Phase | Components | Status |
 |---|---|---|
 | 1 | Search + Download · ATP (Vampire) · ITP (Lean 4) · LLM proposer with Lean-error feedback · LLM informal proof → formal outline | Built and benchmarked; Download = retrieval from the library (external sources later) |
-| 2 | Inference controller (LLM + Hyperon) · Math Atomspace working memory / long-term memory · research papers → long-term memory | Not started |
+| 2 | Inference controller (LLM + Hyperon) · Math Atomspace working memory / long-term memory · research papers → long-term memory | Next |
 | 3 | PLN (probabilistic logic networks) feeding the inference controller | Not started |
 
 ## Phase 1 result
@@ -28,16 +28,35 @@ translated to Lean 4 by the companion
 | v5 | Testing the LLM with Vampire's whole proof exposed 73% empty LLM replies. Fixes: rescue cut-off replies, free repairs (indentation, `eq` bridge, finish leftover goals), 5 rounds, few-shot examples | 742 | +77 |
 | v6 | The model now gets real errors (49% of feedback had been bogus), closest real lemma names suggested for invented ones, every network error retried, deepseek only | 755 | +13 |
 | v7 | 96 facts instead of 24. The measurement showed only 7 of 257 goals had every needed lemma in the old 24 | **832** | +77 |
-| v8 (running) | 160 facts, 7 rounds | 842 so far | +10 (27 of 167 goals done) |
+| v8 | 160 facts, 7 rounds. Stopped after 85 of 167 goals, once the analysis below showed missing lemmas were no longer the main cause of failure | 859 | +27 |
+| **v9** | Lemmas shown as Lean prints them (argument order plain), misapplied lemmas answered with their signature | **877** | +18 |
 
 Every one kernel-checked; **all 640 v4 proofs were re-verified independently
 in fresh Lean runs (`recheck_v4.jsonl`: 640 / 640)**, as were the 563 v3
 proofs and the 51 LLM-found proofs. The LLM proofs of v5 were re-verified
 from scratch (`results/llm_proofs_verified.json`: 77 / 77), as were those of
-v6 and v7 (`results/v6v7_verified.json`: 90 / 90). The 25 from earlier
-experiments (automatic induction, theorems earlier versions proved) were
-verified when found (`results/phase1_v5_summary.json` lists them). v8's
-proofs are re-verified the same way when its run ends.
+v6 and v7 (`results/v6v7_verified.json`: 90 / 90), and of v8 and v9
+(`results/v8v9_verified.json`: 45 / 45). The 25 from earlier experiments
+(automatic induction, theorems earlier versions proved) were verified when
+found (`results/phase1_v5_summary.json` lists them). Of the 877, 665 come
+from the pipeline without any LLM and 212 from the LLM loop, on theorems
+the pipeline had attempted and failed (`results/phase1_final_summary.json`).
+"Without any LLM" describes the run: some of the pipeline's fixed tactic
+strategies were distilled from earlier LLM-found proofs.
+
+**Replay.** 875 of the 877 proofs are stored as exact Lean scripts in
+`results/proof_bundle.jsonl` (`phase1/build_bundle.py`, `phase1/recover_earlier.py`),
+and one command re-checks all of them from scratch, each in a fresh Lean
+process, with the full guard: `cd phase1 && python3 replay.py 6`. Result:
+**875 / 875** (`results/replay.jsonl`), and also 875 / 875 against the
+previous version of the library (`results/replay_previous_library.jsonl`).
+The guard fails closed: incomplete Lean output is a rejection, and a proof
+may rest only on the library's own axioms and Lean's standard three
+(`phase1/test_guard.py`, `phase1/test_guard_output.py`). Two of the 25
+results from earlier experiments, `SNoLev_uniq_Subq` and
+`nat_p_UnivOf_Empty`, were verified when found, but their scripts were not
+kept and today's tools do not reproduce them with the original settings;
+they remain recorded results without a replayable script.
 
 Where v4's +77 came from, by proof line (v4 vs v3):
 
@@ -80,6 +99,35 @@ no measurable difference (34 / 51 with it, 34 / 51 without, same facts).
 The informal→formal pass (`experiments/dsp.py`) returned 1 / 32 on the
 hardest residual goals before these fixes; it has not been re-run since.
 
+### v6–v9: from feedback to missing lemmas
+
+- **v6, real feedback.** In 49% of failed attempts the model had been shown
+  a misleading error: a script whose first line sat at column 0 and the rest
+  indented made Lean read the next lines as `intro` arguments. Scripts are
+  now normalized before checking, invented lemma names are answered with the
+  closest real earlier lemmas, and every network error is retried.
+- **v7, missing lemmas.** For the 257 goals still unproved, the human proofs
+  cite a median of 13 lemmas. Search's top 24 facts held all of them for only
+  7 goals; the top 96 for 66 (recall 0.45 at 24, 0.79 at 96, 0.87 at 160).
+  Giving the model 96 facts instead of 24 proved 77 more theorems, many of
+  them in rounds 1–3, including goals that hours of decomposition had
+  failed on.
+- **v8, the limit of more facts.** With 160 facts, 82 of 87 goals had at
+  least 75% of the lemmas they need. Where every lemma was present, the
+  model still failed about half the time, most often with "Application type
+  mismatch": the right lemma, its arguments in the wrong order.
+- **v9, readable lemmas.** Every fact is now shown as Lean prints it
+  (`SNoLt_tra : ∀ (a b c : set), SNo a → SNo b → SNo c → SNoLt a b → ...`)
+  instead of the library's nested source text (`phase1/lean_sigs.py`), and a
+  misapplied lemma is answered with its signature.
+
+Tried and dropped, with results kept in `phase1/experiments/`: decomposition
+into lifted lemmas (`decompose.py`: most steps proved, a hard core step
+stayed open, 0 / 3 goals), embedding-based retrieval (`embed_search.py`:
+recall 0.48 at 96 facts against Search's 0.79), and other gateway models on
+the hard goals (gpt-oss-120b 0 / 128 and gemma-4-31b 0 / 24 before v9;
+minimax-m3 and asi1 0 / 2 each on goals deepseek proves).
+
 Details: `results/phase1_baseline_v1.md` (baseline, failure
 analysis), `results/phase1_llm_v1.md` (model comparison, cascade),
 `results/phase1_v2.md` (v2 and v3 runs), `results/phase1_llm_dsp.md` (LLM
@@ -103,17 +151,21 @@ rejected; a genuine proof, or citing an earlier identical theorem, must be
 accepted. The first version of the guard passed cheating proofs; these
 tests caught it.
 
-Vampire and the LLM are **untrusted**: they only propose. Lean decides.
+Vampire and the LLM only propose proofs; every proof is verified by Lean.
 
 ## How it works (Phase 1)
 
 ```
-goal ──> Search ──> ranked facts ──> Vampire (untrusted) ──> premises that worked
-                                                                  │
-                        LLM (untrusted, optional) ── proposes ────┤
-                                  ▲                               ▼
-                                  └── Lean's error ◄── Lean 4 (trusted) + statement check + leak guard
+goal ──> Search ──> ranked facts ──┬──> Vampire ──> premises its proof used ──> Lean automation (grind, Duper, …)
+                                   │                                                     │ fails
+                                   └── top 160 facts, shown as Lean signatures ──> LLM ── proposes ──┐
+                                                                         ▲                           ▼
+                                                                         └── Lean's error ◄── Lean 4 + statement check + leak guard
 ```
+
+When Vampire finds a proof, the premises it used go to Lean's automation;
+when it does not (most of the hardest theorems), the LLM works from
+Search's top 160 facts directly.
 
 - `phase1/library.py`: loads every declaration from Megalodon's typed
   export, in order, with the symbols each mentions.
@@ -134,7 +186,12 @@ goal ──> Search ──> ranked facts ──> Vampire (untrusted) ──> pre
   `recheck.py` and `experiments/verify_vp_final.py` independently
   re-verify every LLM-found proof.
 - `phase1/vampire_proof.py`: parses Vampire's refutation and rewrites it
-  for an LLM prompt (library names, bookkeeping steps collapsed).
+  for an LLM prompt. Used only in the experiment showing that Vampire's
+  proof text does not help the LLM once its lemmas are given; not part of
+  the final loop.
+- `phase1/lean_sigs.py`: every library lemma's signature as Lean prints it,
+  for prompts and for feedback on misapplied lemmas (cached in
+  `results/lean_sigs.json`, rebuilt by running the script).
 - `phase1/experiments/`: one-off experiment drivers, kept so every number
   here can be reproduced (see its README).
 
@@ -183,16 +240,17 @@ endpoint).
 ```bash
 cd phase1
 python3 test_guard.py                 # leak-guard controls: must all pass
+python3 test_guard_output.py          # guard fails closed on incomplete Lean output (no Lean needed)
 python3 search.py ../data/corpus.sexpr   # Search recall vs. real proofs
 python3 experiment.py 33 6 out.jsonl  # sample: every 33rd theorem, 6 workers
 python3 experiment.py 1 6 out.jsonl   # full benchmark (~7h on 6 workers)
 PYTHONPATH=. python3 experiments/try_llm.py <thm1,thm2> openai/gpt-oss-120b 4   # LLM loop, experimental
 
-# the v5 LLM sweep over every goal no run has proved yet, then re-verification
-PYTHONPATH=. python3 experiments/try_llm_vampire_sweep.py prep-search ../results/rest.jsonl
+# the LLM sweep over every goal no run has proved yet, then re-verification
+PYTHONPATH=. python3 experiments/try_llm_vampire_sweep.py prep-search ../results/rest.jsonl --facts 160
 LLM_LEDGER=../results/rest_ledger.jsonl LLM_CALL_CAP=4000 PYTHONPATH=. \
   python3 experiments/try_llm_vampire_sweep.py run ../results/rest.jsonl ../results/rest_out.jsonl noproof \
-  --rounds 5 --workers 3 --examples 3 --model deepseek/deepseek-v4-flash-0731
+  --rounds 7 --workers 4 --examples 3 --model deepseek/deepseek-v4-flash-0731
 PYTHONPATH=. python3 experiments/verify_vp_final.py ../results/verified.json ../results/rest_out.jsonl
 ```
 
@@ -200,10 +258,12 @@ PYTHONPATH=. python3 experiments/verify_vp_final.py ../results/verified.json ../
 
 - The library uses Megalodon's own foundations inside Lean (no Mathlib),
   so Lean's automation only works well after the bridge rewrite.
-- 257 theorems remain unproved. Most need a long multi-step argument
-  (surreal-number arithmetic above all): the LLM fails there on the
-  argument itself, not on formatting. Borderline goals vary between runs
-  because of Vampire's time limit and LLM sampling.
-- On the LLM gateway, deepseek-v4-flash is the stronger model but is
-  heavily loaded (minutes per reply); gpt-oss-120b answers in seconds.
+- 122 theorems remain unproved, mostly surreal-number and integer
+  arithmetic.
+  Most now have the lemmas they need in the prompt; the model fails on
+  using them correctly (argument order, encoded logic). Borderline goals
+  vary between runs because of Vampire's time limit and LLM sampling.
+- On the LLM gateway, deepseek-v4-flash is the only model that proves the
+  hard goals, but it is heavily loaded (minutes per reply); gpt-oss-120b
+  answers in seconds but rarely succeeds there.
 - Category percentages use a vocabulary heuristic and are approximate.

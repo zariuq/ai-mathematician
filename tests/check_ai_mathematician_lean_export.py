@@ -25,7 +25,7 @@ def prelude():
 def execute(binary, source, directory):
     path = directory / (hashlib.sha256(source.encode()).hexdigest()[:20] + ".metta")
     path.write_text(source)
-    ran = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(path)],
+    ran = subprocess.run([str(binary), "--lang", "petta", str(path)],
                          cwd=ROOT, text=True, capture_output=True, check=False)
     assert ran.returncode == 0, ran.stderr or ran.stdout[:2000]
     values = read_values(ran.stdout)
@@ -73,7 +73,7 @@ def main():
             assert set(row[4]) == entry.deps, (entry.name, row[4], entry.deps)
             checks += 3
         generated = output / ("Fixture.lean" if corpus == p else "All.lean")
-        emitted = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6",
+        emitted = subprocess.run([str(binary), "--no-results", "--lang", "petta",
                                   str(ROOT / "phase1/lean_export_main.metta"), str(corpus), str(generated)],
                                  cwd=ROOT, text=True, capture_output=True, check=False)
         assert emitted.returncode == 0, emitted.stdout[:6000] + emitted.stderr[:2000]
@@ -85,7 +85,7 @@ def main():
         checks += 1
         views = output / ("fixture-views" if corpus == p else "corpus-views")
         views.mkdir(exist_ok=True)
-        emitted = subprocess.run([str(binary), "--no-results", "--lang", "petta@1.0.6",
+        emitted = subprocess.run([str(binary), "--no-results", "--lang", "petta",
                                   str(ROOT / "phase1/lean_export_main.metta"), str(corpus), str(views), "--views"],
                                  cwd=ROOT, text=True, capture_output=True, check=False)
         assert emitted.returncode == 0, emitted.stdout[:6000] + emitted.stderr[:2000]

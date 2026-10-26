@@ -24,7 +24,7 @@ def rejected(action):
 def main():
     contract = json.loads(CONTRACT.read_text())
     symbols = audit_contract(contract)
-    assert len(symbols) == 25 and sum(map(len, symbols.values())) > 110
+    assert len(symbols) == 26 and sum(map(len, symbols.values())) > 110
     assert public_symbols('class A:\n def f(self): pass\n def _x(self): pass\ndef g(): pass') == {'A', 'A.f', 'g'}
     invalid = copy.deepcopy(contract)
     invalid['capabilities'][0]['python']['library.py'].append('new_unmapped_api')

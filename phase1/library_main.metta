@@ -1,4 +1,4 @@
-; cetta --lang petta@1.0.6 phase1/library_main.metta corpus.sexpr
+; cetta --lang petta phase1/library_main.metta corpus.sexpr
 ; Without an argument, use data/corpus.sexpr, as the Python entry point does.
 !(import! &self "library.metta")
 !(import! &self system)

@@ -169,7 +169,7 @@ def oracle_from_lines(oracle, lines):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cetta", required=True, type=Path)
-    parser.add_argument("--language", default="petta@1.0.6")
+    parser.add_argument("--language", default="petta")
     parser.add_argument("--oracle-library", type=Path, default=ROOT / "phase1/library.py")
     parser.add_argument("--corpus", type=Path)
     parser.add_argument("--generated", type=int, default=32)

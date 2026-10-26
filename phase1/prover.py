@@ -19,7 +19,7 @@ import tempfile
 import time
 
 from atp import THF, attach_prim_indices, run_vampire, Unsupported, ident
-from itp import LEAN, LIB, BRIDGE, _GUARD, leak_free
+from itp import LEAN, LIB, BRIDGE, _GUARD, guard_verdict, leak_free
 from search import Search
 from induction import Inductor, lean_script
 
@@ -419,14 +419,11 @@ class Prover:
                 results.append((label, False,
                                 "lean error: " + "\n---\n".join(errors[att])[:err_limit]))
                 continue
-            m = re.search(rf"GUARD\[{att}\] samestmt (\w+)", out)
-            if not m or m.group(1) != "true":
-                results.append((label, False, "statement mismatch/missing"))
-                continue
-            m = re.search(rf"GUARD\[{att}\] used ?(.*)", out)
-            used = m.group(1).split() if m else []
-            if "sorryAx" in used:
-                results.append((label, False, "sorryAx"))
+            # each attempt needs its own complete guard report (the batch as a
+            # whole exits non-zero whenever another attempt fails)
+            ok, why, used = guard_verdict(out, f"[{att}]")
+            if not ok:
+                results.append((label, False, why))
                 continue
             ok, leak = leak_free(used, goal.index, self.index_of)
             results.append((label, ok, "ok" if ok else f"leak {leak}"))

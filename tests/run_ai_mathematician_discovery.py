@@ -84,7 +84,7 @@ def independent_check(config, goal, tactic, profile, output, budget=None):
 '''
     script = output / 'recheck.metta'
     script.write_text(source)
-    run = owned_run([config['cetta'], '--lang', 'petta@1.0.6', script],
+    run = owned_run([config['cetta'], '--lang', 'petta', script],
                     env=dict(os.environ, CETTA_ITP_RUNTIME='native'))
     (output / 'stdout.log').write_text(run.stdout)
     (output / 'stderr.log').write_text(run.stderr)
@@ -337,7 +337,7 @@ def main():
                              itp_runtime='native', trace=True, use_duper=True)
         path = args.output / 'run.json'
         path.write_text(json.dumps(native_config, indent=2) + '\n')
-        run = owned_run([args.cetta, '--no-results', '--lang', 'petta@1.0.6', ROOT / 'phase1/workers_main.metta', path],
+        run = owned_run([args.cetta, '--no-results', '--lang', 'petta', ROOT / 'phase1/workers_main.metta', path],
                         env=dict(os.environ, CETTA_ITP_RUNTIME='native'))
         (args.output / 'coordinator.stdout').write_text(run.stdout)
         (args.output / 'coordinator.stderr').write_text(run.stderr)

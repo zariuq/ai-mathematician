@@ -16,7 +16,7 @@ def prelude():
 
 
 def run(binary,source):
-    result=subprocess.run([str(binary),'--lang','petta@1.0.6','-e',prelude()+source],cwd=ROOT,
+    result=subprocess.run([str(binary),'--lang','petta','-e',prelude()+source],cwd=ROOT,
                           text=True,capture_output=True,timeout=180)
     assert result.returncode==0,(result.stdout,result.stderr)
     values=read_atoms(result.stdout)

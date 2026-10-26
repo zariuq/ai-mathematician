@@ -52,7 +52,7 @@
           ($options (ai-math:llm-config $client Options)))
      (ai-math:llm-process-json
        (proc:run ("flock" "--exclusive" (str:concat $ledger ".lock") $binary
-                   "--no-results" "--lang" "petta@1.0.6" (str:concat $root "/phase1/llm_ledger_main.metta") $ledger)
+                   "--no-results" "--lang" "petta" (str:concat $root "/phase1/llm_ledger_main.metta") $ledger)
          ((lifetime owner) (stdin (json:stringify $request))
           (timeout-ms (ai-math:option $options ledger-timeout-ms 30000)))))))
 (= (ai-math:llm-reserve $client)

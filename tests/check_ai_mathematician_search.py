@@ -42,7 +42,7 @@ class CanonicalSet(set):
 
 def execute(binary, program):
     completed = subprocess.run(
-        [str(binary), "--lang", "petta@1.0.6", "-e", program], cwd=ROOT,
+        [str(binary), "--lang", "petta", "-e", program], cwd=ROOT,
         text=True, capture_output=True, check=False,
     )
     if completed.returncode:
@@ -323,7 +323,7 @@ def main():
     library_sha256 = hashlib.sha256(library_source.read_bytes()).hexdigest()
     example = ROOT / "tests/metta/ai_mathematician_search.metta"
     expected_controls = len(re.findall(r"^!\(test\b", example.read_text(), re.M))
-    result = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(example)],
+    result = subprocess.run([str(binary), "--lang", "petta", str(example)],
                             cwd=ROOT, text=True, capture_output=True, check=False)
     assert result.returncode == 0, result.stderr or result.stdout
     assert result.stdout.count("✅") == expected_controls and "❌" not in result.stdout, result.stdout
@@ -333,13 +333,13 @@ def main():
     checks += compare_score_orders(binary)
     entry = ROOT / "phase1/search_main.metta"
     data = ROOT / "tests/fixtures/ai_mathematician_library.sexpr"
-    cli = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(entry), str(data)],
+    cli = subprocess.run([str(binary), "--lang", "petta", str(entry), str(data)],
                          cwd=ROOT.parent, text=True, capture_output=True, check=False)
     assert cli.returncode == 0, "CLI:\n" + cli.stderr
     assert read_atoms(cli.stdout)[-1] == ["RecallSummary", "2", [
         ["RecallAt", str(k), ["Mean", "0.75"], ["Complete", "1", "0.5"]]
         for k in (8, 16, 32, 64)]], cli.stdout
-    missing = subprocess.run([str(binary), "--lang", "petta@1.0.6", str(entry), str(data) + ".missing"],
+    missing = subprocess.run([str(binary), "--lang", "petta", str(entry), str(data) + ".missing"],
                              cwd=ROOT.parent, text=True, capture_output=True, check=False)
     assert missing.returncode != 0 and "RecallSummary" not in missing.stdout
     assert "cannot open file" in missing.stdout + missing.stderr

@@ -45,5 +45,30 @@ expect("genuine proof", "orIL", "intro P Q hp r f g\nexact f hp", True)
 #    pair by citing the earlier one -- legitimate reuse, must be accepted
 expect("cite earlier identical theorem", late.name, f"exact {early.name}", True)
 
+
+# Auxiliary declarations (the batch path's prelude, used for lifted lemmas):
+# a prelude that *declares an axiom* stating the theorem must be caught; a
+# prelude that proves a genuine helper lemma must not be.
+from prover import Prover  # noqa: E402
+
+prover = Prover(decls, "../data/corpus.sexpr", sigs)
+
+
+def expect_batch(label, target, prelude, tactic, want_accept):
+    global failures
+    t = thms[target]
+    [(_, accepted, why)] = prover.attempt_batch(t, [(label, tactic)], prelude=prelude)
+    good = accepted == want_accept
+    failures += not good
+    print(f"{'PASS' if good else 'FAIL'}  {label}: accepted={accepted} "
+          f"(expected {want_accept})  [{why[:120]}]")
+
+
+expect_batch("planted axiom in the prelude", "orIL",
+             f"axiom cheat_orIL{sigs['orIL']}", "exact cheat_orIL", False)
+expect_batch("genuine helper lemma in the prelude", "orIL",
+             f"theorem helper_orIL{sigs['orIL']} := by\n  intro P Q hp r f g\n  exact f hp",
+             "exact helper_orIL", True)
+
 print("ALL GUARD CONTROLS PASS" if not failures else f"{failures} CONTROL(S) FAILED")
 sys.exit(1 if failures else 0)

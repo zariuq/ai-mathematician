@@ -14,6 +14,7 @@ statement identity, leak guard).
   prep [--timeout S] [--targets-from cache.jsonl] retries goals without a proof
   prep-search <cache.jsonl> [--facts N]: Search-only rows for EVERY goal no
        run has proved yet (for the noproof arm, and as Vampire targets)
+       [--goals a,b] only these goals
   run  [--examples N] adds N accepted proofs of similar earlier theorems
        [--skip-proved-in a.jsonl,b.jsonl] skips goals already proved there
        [--mode dsp] plan-and-fill (experiments/dsp.py) instead of the loop
@@ -75,11 +76,11 @@ def unproved():
     return [r["goal"] for r in map(json.loads, open(RUN)) if r["goal"] not in done]
 
 
-def prep_search(cache, n_facts=24):
+def prep_search(cache, n_facts=24, names=None):
     """Rows without a Vampire proof for every unproved goal: Search's top
     facts (only declarations before the goal) and the goal's definitions."""
     p = _init()
-    names = unproved()
+    names = names or unproved()
     with open(cache, "w") as fh:
         for n in names:
             g = p.by_name[n]
@@ -219,7 +220,8 @@ if __name__ == "__main__":
         prep(rest[0], int(rest[1]) if len(rest) > 1 and rest[1].isdigit() else 6,
              int(opt("--timeout", "30")), names)
     elif cmd == "prep-search":
-        prep_search(rest[0], int(opt("--facts", "24")))
+        goals = opt("--goals", None)
+        prep_search(rest[0], int(opt("--facts", "24")), goals.split(",") if goals else None)
     else:
         run(rest[0], rest[1], rest[2], opt("--model", "deepseek/deepseek-v4-flash-0731"),
             int(opt("--rounds", "3")), int(opt("--workers", "3")),

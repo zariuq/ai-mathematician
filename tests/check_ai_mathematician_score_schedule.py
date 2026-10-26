@@ -47,7 +47,7 @@ def main():
            (tensor:encode $scores))))))
 '''
     args.output.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run([str(args.cetta.resolve()), '--lang', 'petta@1.0.6', '-e', source],
+    result = subprocess.run([str(args.cetta.resolve()), '--lang', 'petta', '-e', source],
                             cwd=args.library_root, capture_output=True)
     (args.output / 'scores.bin').write_bytes(result.stdout)
     (args.output / 'stderr.log').write_bytes(result.stderr)
